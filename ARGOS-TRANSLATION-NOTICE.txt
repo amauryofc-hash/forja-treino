@@ -1,0 +1,6 @@
+Traduções da biblioteca de exercícios geradas localmente com Argos Translate.
+Projeto: https://github.com/argosopentech/argos-translate
+Modelos usados: translate-en_pt-1_9 e translate-es_pt-1_0.
+O modelo de inglês para português deriva do OPUS-MT (licença CC BY 4.0).
+https://creativecommons.org/licenses/by/4.0/
+Os modelos não são distribuídos com o aplicativo. Traduções automáticas podem exigir revisão de terminologia técnica.
