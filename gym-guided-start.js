@@ -9,6 +9,22 @@
   dividido:{label:'Superior / inferior',days:[
    {name:'Superior',exercises:['Supino reto','Remada baixa','Desenvolvimento','Puxada frontal','Tríceps corda','Rosca direta']},
    {name:'Inferior',exercises:['Agachamento livre','Leg press','Stiff','Mesa flexora','Panturrilha em pé','Prancha']}
+  ]},
+  iniciante:{label:'Iniciante · 3 dias',days:[
+   {name:'Iniciante A',exercises:['Agachamento livre','Supino reto','Remada baixa','Prancha']},
+   {name:'Iniciante B',exercises:['Leg press','Puxada frontal','Desenvolvimento','Panturrilha em pé']},
+   {name:'Iniciante C',exercises:['Stiff','Flexão de braços','Remada baixa','Prancha']}
+  ]},
+  hipertrofia:{label:'Hipertrofia · empurrar / puxar / pernas',days:[
+   {name:'Empurrar',exercises:['Supino reto','Supino inclinado','Desenvolvimento','Elevação lateral','Tríceps corda']},
+   {name:'Puxar',exercises:['Puxada frontal','Remada baixa','Face pull','Rosca direta']},
+   {name:'Pernas',exercises:['Agachamento livre','Leg press','Stiff','Mesa flexora','Panturrilha em pé']}
+  ]},
+  corrida:{label:'Força complementar à corrida',days:[
+   {name:'Força para corrida',exercises:['Agachamento livre','Stiff','Elevação pélvica','Panturrilha em pé','Prancha']}
+  ]},
+  funcional:{label:'Funcional · corpo inteiro',days:[
+   {name:'Funcional misto',exercises:['Agachamento livre','Afundo','Flexão de braços','Remada baixa','Burpee','Prancha']}
   ]}
  };
  async function read(key,fallback){try{const row=await(root.ForjaStorage||root.storage).get(key);return row?.value?JSON.parse(row.value):fallback;}catch{return fallback;}}
@@ -22,6 +38,8 @@
   if(draft){const p=document.createElement('p');p.textContent=`Treino em andamento: ${draft.planName||'treino livre'}. Continue abaixo de onde parou.`;target.append(p);}
   else if(suggested){const p=document.createElement('p');p.textContent=`Próxima ficha sugerida: ${suggested.name}. Você pode escolher outra na lista.`;const button=document.createElement('button');button.type='button';button.className='secondary-btn';button.textContent='Usar esta ficha';button.onclick=()=>{const select=document.getElementById('gym-session-plan');if(select)select.value=suggested.id;select?.scrollIntoView?.({behavior:'smooth',block:'center'});};target.append(p,button);}
   else{const p=document.createElement('p');p.textContent='Comece com treino livre, crie sua ficha ou use um modelo editável abaixo.';target.append(p);}
+  const suggestion=root.ForjaGymSuggest?.message?.(sessions);
+  if(suggestion){const p=document.createElement('p');p.className='gym-muscle-suggestion';p.textContent=suggestion;target.append(p);}
   list.replaceChildren();for(const [key,template] of Object.entries(templates)){const box=document.createElement('div');box.className='gym-ready-plan';const strong=document.createElement('strong');strong.textContent=template.label;const p=document.createElement('p');p.textContent=template.days.map(day=>`${day.name}: ${day.exercises.join(', ')}`).join(' · ');const button=document.createElement('button');button.type='button';button.className='secondary-btn';button.textContent='Adicionar fichas';button.addEventListener('click',()=>install(key).catch(error=>{const status=document.getElementById('gym-training-status');if(status)status.textContent=error.message;}));box.append(strong,p,button);list.append(box);}
  }
  return {templates,buildPlans,platePlan,install,render};

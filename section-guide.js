@@ -5,6 +5,8 @@
     natacao: 'Registre suas sessões de natação e acompanhe distância, duração e evolução semanal.',
     crossfit: 'Leia ou registre o WOD, confira os movimentos e revise o treino antes de salvar.',
     academia: 'Escolha uma ficha ou treino livre, registre as séries e finalize o treino do dia.',
+    biblioteca: 'Busque exercícios, confira a execução e veja a última carga antes de treinar.',
+    relatorios: 'Acompanhe o volume, a duração e os recordes estimados da Academia.',
     progresso: 'Consulte o calendário, a evolução dos treinos e os músculos trabalhados.',
     corpo: 'Registre seu peso e acompanhe a tendência ao longo do tempo.',
     agua: 'Adicione a água consumida e acompanhe a meta do dia.',
@@ -17,19 +19,25 @@
   const title = document.getElementById('section-guide-title');
   const help = document.getElementById('section-guide-help');
   const helpText = document.getElementById('section-guide-text');
+  const tourButton = document.getElementById('section-guide-tour');
   const tabs = document.querySelector('.tabs');
   if (!guide || !tabs) return;
+  let lastTab='inicio';
 
   function render() {
     const active = tabs.querySelector('.tab.active[data-tab]');
     const key = active?.dataset.tab;
     guide.hidden = !key || key === 'inicio';
+    document.body.classList.toggle('forja-in-section', !guide.hidden);
+    if(key!==lastTab){document.body.classList.remove('forja-tabs-open');lastTab=key;}
     if (guide.hidden) return;
     title.textContent = active.textContent.trim().replace(/^[^\p{L}\p{N}]+/u, '');
     helpText.textContent = descriptions[key] || 'Consulte e registre suas informações nesta seção.';
   }
   document.getElementById('section-guide-home').addEventListener('click', () => window.switchTab?.('inicio'));
   document.getElementById('section-guide-switch').addEventListener('click', () => {
+    document.body.classList.toggle('forja-tabs-open');
+    if(!document.body.classList.contains('forja-tabs-open'))return;
     tabs.scrollIntoView({ behavior: 'smooth', block: 'start' });
     const active = tabs.querySelector('.tab.active[data-tab]');
     (active || tabs.querySelector('.tab[data-tab]'))?.focus({ preventScroll: true });
@@ -38,7 +46,9 @@
     const open = help.getAttribute('aria-expanded') !== 'true';
     help.setAttribute('aria-expanded', String(open));
     helpText.hidden = !open;
+    if(tourButton)tourButton.hidden=!open;
   });
+  tourButton?.addEventListener('click', () => window.ForjaTour?.start?.(tabs.querySelector('.tab.active[data-tab]')?.dataset.tab));
   new MutationObserver(render).observe(tabs, { subtree: true, attributes: true, attributeFilter: ['class'] });
   render();
 })();

@@ -110,7 +110,7 @@ async function flushWrite(key){
 }
 
 // ---------- BACKUP EXPORT / IMPORT ----------
-const BACKUP_KEYS = ['body-log','progress-photos','measurements','diet-log','diet-closed-days','water-daily-goal','calorie-calc-lock','shopping-list-checked','shopping-list-removed','shopping-list-custom','visible-tabs-v1','creatine-days-v1','training-goal','rest-day-weekly','local-reminders-v1','gym-plans-v1','gym-sessions-v1','gym-custom-exercises-v1','gym-active-workout-v1','weight-goal-v1'];
+const BACKUP_KEYS = ['body-log','progress-photos','measurements','diet-log','diet-closed-days','water-daily-goal','calorie-calc-lock','shopping-list-checked','shopping-list-removed','shopping-list-custom','visible-tabs-v1','creatine-days-v1','supplements-v1','supplement-checks-v1','training-goal','rest-day-weekly','local-reminders-v1','gym-plans-v1','gym-sessions-v1','gym-custom-exercises-v1','gym-active-workout-v1','weight-goal-v1'];
 async function buildBackupJson(){
   const data = {};
   for(const key of BACKUP_KEYS){
@@ -631,7 +631,7 @@ async function getLastWeightValue(){
 
 // ---------- WATER BOTTLE VISUAL ----------
 const K_WATER_GOAL = 'water-daily-goal';
-let waterDailyGoal = 2000; // default; editável na aba Água, persistido
+let waterDailyGoal = 2100; // default; editável na aba Água, persistido
 async function loadWaterGoal(){
   try{
     const r = await window.storage.get(K_WATER_GOAL);
@@ -650,6 +650,7 @@ async function adjustWaterGoal(delta){
   syncWaterGoalUI();
   await storageSet(K_WATER_GOAL, String(waterDailyGoal));
   await renderWaterBottleViews();
+  window.ForjaHomeHero?.render?.();
   await renderCharts();
 }
 async function setWaterGoalFromInput(){
@@ -1078,6 +1079,7 @@ const K_CALC_LOCK = 'calorie-calc-lock';
 let calcLocked = false;
 
 // Trava os campos pra não mudarem mais sozinhos (ex: peso deixa de puxar o
+// último registrado) nem por toque acidental — pedido do Amaury pra fixar
 // os dados depois de preencher tudo do jeito que quer.
 async function loadCalcLock(){
   try{
@@ -1723,6 +1725,28 @@ async function computeDietDaySummary(dateStr){
 }
 
 // ---------- STREAK ----------
+function evaluateStreakDay({water,waterGoal,closed,summary,trained,rest,bibleRequired,bibleDone}){
+  const waterOk=water>=waterGoal;
+  const balance=summary.garminTotal>0?summary.garminTotal-summary.comido:summary.goal-summary.comido;
+  const foodOk=!!closed&&summary.entryCount>0&&summary.comido>0&&(summary.garminTotal>0?balance>0:summary.goal>0&&balance>=0);
+  const trainingOk=!!trained||!!rest;
+  const bibleOk=!bibleRequired||!!bibleDone;
+  return {waterOk,foodOk,trainingOk,bibleOk,complete:waterOk&&foodOk&&trainingOk&&bibleOk,balance,balanceSource:summary.garminTotal>0?'gasto medido':'meta alimentar'};
+}
+async function getStreakDayStatus(key){
+  const date=new Date(`${key}T12:00:00`);
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(key)||Number.isNaN(date.getTime())||todayKey(date)!==key)throw Error('Data inválida.');
+  const week=todayKey(getMonday(date)),body=await loadBody();
+  const water=body.filter(e=>e.type==='water'&&e.date===key).reduce((sum,e)=>sum+waterMl(e),0);
+  const sport=await loadCombinedSportDates();
+  let closed={},restWeeks={};try{const r=await window.storage.get('diet-closed-days');closed=r?JSON.parse(r.value):{};}catch{}
+  try{const r=await window.storage.get('rest-day-weekly');restWeeks=r?JSON.parse(r.value):{};}catch{}
+  const restDay=Number(restWeeks[week]??0),summary=await computeDietDaySummary(key),bibleState=await window.ForjaBibleReader?.load?.();
+  const bibleRequired=!!bibleState?.activatedOn&&key>=bibleState.activatedOn;
+  const bibleDone=!bibleRequired||window.ForjaBibleReader.qualifies(bibleState,key);
+  return {...evaluateStreakDay({water,waterGoal:waterDailyGoal,closed:closed[key],summary,trained:sport.has(key),rest:date.getDay()===restDay,bibleRequired,bibleDone}),water,waterGoal:waterDailyGoal,closed:!!closed[key],meals:summary.entryCount,consumed:summary.comido,totalBurn:summary.garminTotal,foodGoal:summary.goal,trained:sport.has(key),restPlanned:date.getDay()===restDay,bibleRequired,bibleDone};
+}
+window.getStreakDayStatus=getStreakDayStatus;
 async function computeStreak(){
   const sportDays=await loadCombinedSportDates(),body=await loadBody();
   const bibleState=await window.ForjaBibleReader?.load?.();
@@ -2045,6 +2069,7 @@ function clearDietFilePreview(previewElId){
   if(el) el.innerHTML = '';
 }
 // Botão explícito pra descartar a foto/rótulo carregado a qualquer momento —
+// pedido do Amaury, já que antes só dava pra "substituir" escolhendo outro
 // arquivo, sem um jeito de simplesmente remover o que já tinha enviado.
 function clearDietFile(kind){
   tapFeedback();
@@ -2361,7 +2386,7 @@ function computeTdee(){
 // Início), substituindo o TDEE×0,8 calculado como fonte principal. A
 // calculadora de calorias da aba Corpo (TMB/TDEE) continua disponível como
 // referência própria, só não alimenta mais a meta usada aqui.
-let NUTRITION_GOAL = {kcal: 0, protein_g: 0, fat_g: 0, carbs_g: 0};
+let NUTRITION_GOAL = {kcal: 2060, protein_g: 127.5, fat_g: 50, carbs_g: 275.4};
 async function loadNutritionGoal(){
   try {
     const saved=await window.storage.get('nutrition-goal-v1');
@@ -2414,6 +2439,7 @@ async function renderDietTab(){
   checkImageSupport('diet-photo-note', 'o rótulo nutricional (lido por OCR local, sem depender de IA) ou a descrição por texto abaixo');
   await loadDietCache();
   renderMealTypeButtons();
+  window.ForjaDietQuick?.render?.();
   const dateInput = document.getElementById('diet-date-input');
   if(dateInput && !dateInput.value) dateInput.value = selectedDietDate;
 
@@ -2508,9 +2534,203 @@ async function renderDietTab(){
   await window.ForjaEnhancements?.renderDayClose(selectedDietDate);
 }
 
-// Versão compartilhável: nenhum plano alimentar de outra pessoa é incluído.
-let DIET_PLAN={cafe:{label:'Café da manhã',icon:'☕',items:[]},almoco:{label:'Almoço',icon:'🍛',items:[]},lanche:{label:'Lanche',icon:'🍪',options:[{name:'Minha opção',items:[]}]},janta:{label:'Jantar',icon:'🍽️',options:[{name:'Minha opção',items:[]}]},ceia:{label:'Ceia',icon:'🌙',items:[]}};
-let SHOPPING_LIST=[{cat:'Outros',items:[]}];
+// ---------- CARDÁPIO (plano alimentar prescrito) ----------
+// Substitui o cardápio fictício que existia aqui antes por transcrição literal
+// do plano real do nutricionista (Yuri De Souza Fernandes, prescrito 13/08/2026,
+// PDF preservado em 03-ESP-Ferramenta/Referencias-Dieta/). Nenhum valor calórico
+// é mostrado — o documento não traz kcal, só alimento+quantidade, então não
+// inventamos número que não está na fonte (diferente do cardápio antigo, que era
+// invenção própria e por isso podia estimar kcal à vontade).
+//
+// Café, Pós-treino, Almoço e Ceia são fixos (um único item por refeição, sem
+// variar por dia — o documento não varia por dia da semana). Lanche e Janta têm
+// "Opções" nomeadas pelo próprio documento (Opção 1/2/3/4 e 1/2/3) — o usuário
+// escolhe livremente qual seguir num dia, via botão "🔄 Trocar opção", persistido
+// (não por dia da semana, já que o documento não amarra opção a dia).
+const FRUIT_SUBS = ['Abacaxi — 140g','Acerola — 20 unidades (240g)','Banana — 1 unidade grande (55g)','Caju — 1 unidade média (140g)','Goiaba — 1 unidade média (130g)','Jaca — 80g','Kiwi — 2 unidades média(s) (152g)','Maçã — 1 unidade média (130g)','Mamão — 150g','Manga — 120g','Melancia — 200g','Melão — 200g','Laranja — 1 unidade média (180g)','Morango — 200g','Pera — 1 unidade média (110g)','Pêssego — 3 unidades média(s) (180g)','Tangerina Ponkã — 1 unidade média (135g)','Uva — 120g'];
+const FRUIT_SUBS_CEIA = ['Abacaxi — 140g','Acerola — 20 unidades (240g)','Ameixa — 3 unidades média(s) (126g)','Banana — 1 unidade grande (55g)','Caju — 1 unidade média (140g)','Goiaba — 1 unidade média (130g)','Jaca — 80g','Kiwi — 2 unidades média(s) (152g)','Maçã — 1 unidade média (130g)','Mamão — 150g','Manga — 120g','Melancia — 200g','Melão — 200g','Laranja — 1 unidade média (180g)','Morango — 200g','Pera — 1 unidade média (110g)','Pêssego — 3 unidades média(s) (180g)','Tangerina Ponkã — 1 unidade média (135g)','Uva — 120g'];
+const FRUIT_SUBS_PAO_QUEIJO = ['Abacaxi — 140g','Acerola — 20 unidades (240g)','Amora — 140g','Banana — 1 unidade grande (55g)','Caju — 1 unidade média (140g)','Framboesa — 150g','Goiaba — 1 unidade média (130g)','Jaca — 80g','Kiwi — 2 unidades média(s) (152g)','Maçã — 1 unidade média (130g)','Mamão — 150g','Manga — 120g','Melancia — 200g','Melão — 200g','Mirtilo — 120g','Laranja — 1 unidade média (180g)','Morango — 200g','Pera — 1 unidade média (110g)','Pêssego — 3 unidades média(s) (180g)','Pitaia — 180g','Tangerina Ponkã — 1 unidade média (135g)','Uva — 120g'];
+const ARROZ_SUBS = ['Abóbora cozida — 454,5g','Arroz integral cozido — 200g','Batata doce cozida — 236,5g','Batata inglesa cozida — 400g','Cuscuz de milho cozido — 227,3g','Feijão cozido — 200g','Grão de bico cozido — 200g','Macarrão cozido — 181,7g','Purê de batata inglesa — 363,5g'];
+const FRANGO_SUBS = ['Carne (alcatra, contrafilé, coxão mole, filé mignon, lagarto, patinho) cozida/grelhada/assada com sal — 120g','Coxa de frango assada — 120g','Lombo de porco assado — 120g','Filé de peixe grelhado/assado — 150g'];
+const PAO_FRANCES_SUBS = ['Goma de tapioca — 50g','Pão de forma — 2 fatias (50g)'];
+const QUEIJO_SUBS = ['Requeijão Light — 40g'];
+
+let DIET_PLAN = {
+  cafe: {label:'Café da manhã', icon:'☕', items:[
+    {name:'Pão francês', qty:'1 unidade (50g)', subs:PAO_FRANCES_SUBS},
+    {name:'Ovo de galinha', qty:'2 unidades média(s) (100g)', subs:[]},
+    {name:'Queijo mussarela', qty:'20g', subs:QUEIJO_SUBS},
+    {name:'Porção de fruta', qty:'1 porção (75g)', subs:FRUIT_SUBS},
+  ]},
+  posTreino: {label:'Pós primeiro treino', icon:'💪', items:[
+    {name:'Suco de uva concentrado', qty:'200ml', subs:['Suco de laranja — 250ml','Banana — 2 unidades média(s) (130g)','Goiaba — 220g']},
+    {name:'Repositor Eletrolítico', qty:'1 colher de medida (5g)', subs:[]},
+  ]},
+  almoco: {label:'Almoço', icon:'🍛', items:[
+    {name:'Arroz branco cozido', qty:'200g', subs:ARROZ_SUBS},
+    {name:'Peito de frango grelhado', qty:'120g', subs:FRANGO_SUBS},
+    {name:'Legumes e verduras', qty:'100g', subs:[]},
+  ]},
+  lanche: {label:'Lanche', icon:'🍪', options:[
+    {name:'Opção 1', items:[
+      {name:'Pão francês', qty:'1 unidade (50g)', subs:PAO_FRANCES_SUBS},
+      {name:'Frango desfiado', qty:'50g', subs:['Ovo de galinha — 1,3 unidade média (62,5g)','Carne moída — 50g','Atum sólido ao natural — 0,6 lata (106,3g)','Sardinha enlatada — 1,3 filé (43,8g)']},
+      {name:'Queijo mussarela', qty:'20g', subs:QUEIJO_SUBS},
+      {name:'Porção de fruta', qty:'1 porção (75g)', subs:FRUIT_SUBS},
+    ]},
+    {name:'Opção 2', items:[
+      {name:'Iogurte zero ou desnatado', qty:'150ml', subs:['Leite em pó integral — 20g','Leite em pó desnatado — 30g']},
+      {name:'Porção de fruta', qty:'2 porções (150g)', subs:FRUIT_SUBS},
+      {name:'Mel', qty:'20g', subs:['Doce de leite cremoso — 20g']},
+      {name:'Granola', qty:'15g', subs:[]},
+    ]},
+    {name:'Opção 3', items:[
+      {name:'Porção de fruta', qty:'2 porções (150g)', subs:FRUIT_SUBS},
+      {name:'Barrinha de Proteína 45g', qty:'1 unidade (55g)', subs:['YoPro — 1 unidade (250ml)']},
+    ], note:'Barra de proteína = duas de 45g ou uma de 90g'},
+    {name:'Opção 4 (Pão de queijo)', items:[
+      {name:'Ovo de galinha', qty:'1 unidade média (50g)', subs:[]},
+      {name:'Polvilho', qty:'50g', subs:['Goma de tapioca — 62,5g']},
+      {name:'Queijo muçarela', qty:'30g', subs:[]},
+      {name:'Fermento químico em pó', qty:'1 colher de chá cheia (3g)', subs:[]},
+      {name:'Leite', qty:'só pra dar liga (10ml)', subs:[]},
+      {name:'Porção de fruta', qty:'1 porção (75g)', subs:FRUIT_SUBS_PAO_QUEIJO},
+    ]},
+  ]},
+  janta: {label:'Janta', icon:'🍲', options:[
+    {name:'Opção 1', items:[
+      {name:'Arroz branco cozido', qty:'200g', subs:ARROZ_SUBS},
+      {name:'Peito de frango grelhado', qty:'120g', subs:FRANGO_SUBS},
+      {name:'Legumes e verduras', qty:'100g', subs:[]},
+    ]},
+    {name:'Opção 2 (Hambúrguer)', items:[
+      {name:'Pão de hambúrguer', qty:'1 unidade (50g)', subs:[]},
+      {name:'Patinho cru', qty:'150g', subs:[]},
+      {name:'Queijo mussarela', qty:'20g', subs:[]},
+      {name:'Molho (menos maionese)', qty:'20g', subs:[]},
+    ]},
+    {name:'Opção 3 (Pizza de pão sírio)', items:[
+      {name:'Pão sírio grande (16cm)', qty:'1 unidade (60g)', subs:[]},
+      {name:'Frango desfiado', qty:'120g', subs:[]},
+      {name:'Requeijão Light', qty:'30g', subs:[]},
+      {name:'Queijo muçarela', qty:'20g', subs:[]},
+      {name:'Molho de tomate', qty:'à vontade', subs:[]},
+    ]},
+  ]},
+  ceia: {label:'Ceia', icon:'🌙', items:[
+    {name:'Porção de fruta', qty:'2 porções (150g)', subs:FRUIT_SUBS_CEIA},
+    {name:'Whey protein concentrado', qty:'20g', subs:[]},
+    {name:'Leite integral em pó', qty:'20g', subs:['Iogurte zero ou desnatado — 150ml','Leite UHT Integral — 150ml']},
+  ]},
+};
+
+// Transcrição literal da "Lista de compras" do PDF (página 9) — categorizada
+// pra caber no mesmo componente de checklist já existente (o documento original
+// é uma tabela solta, sem categoria). Todo item agora tem `qty` (a pedido do
+// Amaury em 2026-09-17, "quero que todos possuam uma forma de peso pra me
+// basear") — 3 níveis, sempre deixados explícitos no próprio texto:
+// 1) "/semana" — item do plano ativo, quantidade calculada (ver "ESTIMATIVA
+//    DE COMPRA SEMANAL" abaixo).
+// 2) "por porção" sem "estimativa" — peso de 1 porção que vem direto do
+//    documento do nutricionista (valor de substituição prescrito), útil se
+//    você trocar pra esse item num dia.
+// 3) "(estimativa)" — o documento não dá peso nenhum pra esse item (ele só
+//    aparece na lista de compras "crua" do PDF, sem gramatura em lugar
+//    nenhum do texto) — referência de porção usual, não veio da prescrição.
+// Alguns produtos (suco de uva, repositor eletrolítico, whey, mel, barrinha,
+// polvilho, fermento, leite em pó) não apareciam na lista original do PDF —
+// o documento só lista ingredientes citados como SUBSTITUIÇÃO em algum item,
+// não os itens da opção principal do plano — adicionados aqui pra lista ficar
+// completa de verdade.
+let SHOPPING_LIST = [
+  { cat:'Carboidratos', items:[
+    {name:'Arroz branco cozido', qty:'≈2,2kg cozido/semana (≈700-750g de arroz cru)'},
+    {name:'Arroz integral cozido', qty:'200g por porção (substituição do Arroz branco)'},
+    {name:'Aveia em flocos', qty:'≈40g por porção (estimativa)'},
+    {name:'Batata doce', qty:'236,5g por porção (substituição do Arroz branco)'},
+    {name:'Batata inglesa cozida', qty:'400g por porção (substituição do Arroz branco)'},
+    {name:'Batata palha - Yoki', qty:'≈30g por porção (estimativa, guarnição)'},
+    {name:'Cuscuz de milho cozido com sal', qty:'227,3g por porção (substituição do Arroz branco)'},
+    {name:'Feijão (Só Grãos)', qty:'200g por porção (substituição do Arroz branco)'},
+    {name:'Goma de tapioca', qty:'50g por porção (substituição do Pão francês)'},
+    {name:'Grão de bico cozido', qty:'200g por porção (substituição do Arroz branco)'},
+    {name:'Macarrão cozido', qty:'181,7g por porção (substituição do Arroz branco)'},
+    {name:'Pão bisnaguinha', qty:'≈50g por porção (estimativa, 2 unidades)'},
+    {name:'Pão de forma', qty:'2 fatias / 50g por porção (substituição do Pão francês)'},
+    {name:'Pão de forma integral', qty:'≈2 fatias / 50g por porção (estimativa, mesma referência do Pão de forma)'},
+    {name:'Pão francês', qty:'9 unidades/semana (≈450g)'},
+    {name:'Pão para hambúrguer', qty:'3 unidades/semana'},
+    {name:'Purê de batata inglesa', qty:'363,5g por porção (substituição do Arroz branco)'},
+    {name:'Abóbora cabotian cozida', qty:'454,5g por porção (substituição do Arroz branco)'},
+    {name:'Polvilho', qty:'≈50g/semana'},
+    {name:'Fermento químico em pó', qty:'≈3g/semana (sobra de qualquer lata)'},
+  ] },
+  { cat:'Proteínas', items:[
+    {name:'Carne (alcatra, contrafilé, coxão mole, filé mignon, lagarto, patinho) cozida/grelhada/assada com sal', qty:'3x/semana (≈360g) — diversificando o Almoço/Janta'},
+    {name:'Coxa de frango assada', qty:'2x/semana (≈240g) — diversificando o Almoço/Janta'},
+    {name:'Estrogonofe de carne', qty:'≈150g por porção (estimativa)'},
+    {name:'Estrogonofe de frango', qty:'≈150g por porção (estimativa)'},
+    {name:'Filé de peixe grelhado/assado', qty:'1x/semana (≈150g) — diversificando o Almoço/Janta'},
+    {name:'Frango desfiado', qty:'≈100g/semana'},
+    {name:'Lombo de porco assado', qty:'2x/semana (≈240g) — diversificando o Almoço/Janta'},
+    {name:'Ovo de galinha cozido', qty:'15 unidades/semana'},
+    {name:'Patinho cru', qty:'≈450g/semana'},
+    {name:'Peito de frango sem pele grelhado', qty:'3x/semana (≈360g) — diversificando o Almoço/Janta'},
+    {name:'Peito de peru defumado', qty:'≈40g por porção (estimativa, 2-3 fatias)'},
+    {name:'Whey protein concentrado', qty:'≈140g/semana'},
+    {name:'Barrinha de Proteína 45g', qty:'2 unidades/semana'},
+  ] },
+  { cat:'Frutas', items:[
+    {name:'Porção de fruta', qty:'≈2,4kg/semana no total — distribua entre 2-3 frutas que você prefere, da lista de substituição de cada refeição'},
+    {name:'Abacaxi', qty:'140g por porção'},
+    {name:'Acerola', qty:'20 unidades / 240g por porção'},
+    {name:'Banana', qty:'1 unidade grande / 55g por porção'},
+    {name:'Caju', qty:'1 unidade média / 140g por porção'},
+    {name:'Goiaba', qty:'1 unidade média / 130g por porção'},
+    {name:'Jaca', qty:'80g por porção'},
+    {name:'Kiwi', qty:'2 unidades médias / 152g por porção'},
+    {name:'Mamão', qty:'150g por porção'},
+    {name:'Maçã', qty:'1 unidade média / 130g por porção'},
+    {name:'Melancia', qty:'200g por porção'},
+    {name:'Melão', qty:'200g por porção'},
+    {name:'Morango', qty:'200g por porção'},
+    {name:'Pera', qty:'1 unidade média / 110g por porção'},
+    {name:'Pêssego', qty:'3 unidades médias / 180g por porção'},
+    {name:'Tangerina Ponkã', qty:'1 unidade média / 135g por porção'},
+    {name:'Uva', qty:'120g por porção'},
+  ] },
+  { cat:'Laticínios e ovos', items:[
+    {name:'Iogurte natural desnatado', qty:'≈300ml/semana'},
+    {name:'Leite de vaca desnatado UHT', qty:'≈150ml por porção (substituição do Leite integral em pó)'},
+    {name:'Queijo mussarela tradicional - Verde Campo', qty:'≈270g/semana'},
+    {name:'Requeijão', qty:'40g por porção (substituição do Queijo mussarela)'},
+    {name:'Requeijão Cremoso Light (Poços de Caldas)', qty:'30-40g por porção (substituição do Queijo mussarela)'},
+    {name:'Leite integral em pó', qty:'≈140g/semana'},
+  ] },
+  { cat:'Outros', items:[
+    {name:'Adoçante Zero Calorias, sem retrogosto (Puravida)', qty:'conforme o paladar (gotas/sachê — sem grama fixa no plano)'},
+    {name:'Farinha de linhaça', qty:'≈10-15g por porção (estimativa, 1 colher de sopa)'},
+    {name:'Geleia', qty:'≈15-20g por porção (estimativa, 1 colher de sopa)'},
+    {name:'Granola', qty:'≈30g/semana'},
+    {name:'Molho barbecue', qty:'≈20g por porção (estimativa, 1 colher de sopa)'},
+    {name:'Semente de abóbora', qty:'≈15g por porção (estimativa, 1 colher de sopa)'},
+    {name:'Semente de chia', qty:'≈15g por porção (estimativa, 1 colher de sopa)'},
+    {name:'Vegetais cozidos com sal', qty:'≈1,1kg/semana'},
+    {name:'Mel', qty:'≈40g/semana'},
+  ] },
+];
+// ---------- ESTIMATIVA DE COMPRA SEMANAL (premissas usadas acima) ----------
+// Café/Pós-treino/Almoço/Ceia: todo dia (x7). Lanche (4 opções): rotação
+// uniforme (Opção1 x2, Opção2 x2, Opção3 x2, Opção4 x1). Janta: SEM a Opção 3
+// (pizza de pão sírio, tirada a pedido do Amaury em 2026-09-17) — só Opção1
+// (x4) e Opção2 (x3). A proteína do Almoço/Janta Opção1 (11 ocorrências —
+// "Peito de frango grelhado" no documento) foi diversificada entre as 5
+// opções de substituição já autorizadas pelo nutricionista pro mesmo item,
+// a pedido do Amaury, em vez de assumir 100% peito de frango toda vez.
+// Conversão cru↔cozido de arroz e frango é regra de dedo (arroz rende ~3x
+// cozido; grelhar reduz o peso da carne em ~25-30%) — aproximação, não vem
+// do documento do nutricionista.
+
 const K_SHOP_CHECKED = 'shopping-list-checked';
 let shopCheckedCache = null;
 async function loadShopCheckedCache(){
@@ -2526,6 +2746,7 @@ async function persistShopCheckedCache(){
 }
 // Reseta o estado de "comprado" (checkbox marcado) semanalmente, sempre que a
 // aba Cardápio é aberta numa semana nova (segunda-feira como início, mesmo
+// corte já usado na Meta semanal de treino) — pedido do Amaury em 2026-09-17.
 // Só o que foi marcado como comprado desmarca; itens removidos/adicionados
 // por ele continuam do jeito que estavam. Sem processo em segundo plano (é
 // só um app local), então o reset acontece na próxima vez que a aba abrir
@@ -2553,6 +2774,7 @@ async function toggleShopItem(key){
 }
 
 // ---------- LISTA DE COMPRAS PERSONALIZADA (remover item da lista base /
+// adicionar item novo) — pedido do Amaury em 2026-09-17. Itens da lista base
 // (SHOPPING_LIST, transcrita do plano) nunca são apagados de verdade do
 // código — "remover" só marca a chave como escondida (`shopRemovedCache`),
 // reversível se algum dia precisar reverter. Itens adicionados pelo usuário
@@ -2747,6 +2969,7 @@ let corridaStatusUnsub = null;
 const ORIGEM_BADGE = {print:'📷', push_garmin:'⚡', strava:'🔄', manual:'✍️', 'push_garmin+print':'⚡📷', 'push_garmin+manual':'⚡✍️'};
 
 // ---------- EDITAR/EXCLUIR (Corrida/Natação/CrossFit) ----------
+// Pedido do Amaury (2026-09-15): poder editar ou excluir qualquer treino já salvo, nas
 // 3 abas. Em vez de gesto de "segurar" (mais frágil entre mouse/toque, e nada no resto
 // do app usa isso), reaproveita o clique-pra-expandir que já existe: o detalhe expandido
 // ganha os botões. Excluir pede confirmação inline (sem `confirm()` nativo — não dá pra
@@ -3737,6 +3960,7 @@ async function handleCrossfitPrintFile(e){
     });
     const dataUrl = await preprocessImageForOcr(rawDataUrl);
     // Sem timeout, um travamento (ex.: o motor via importScripts também bloqueado) fica
+    // preso em "Lendo..." pra sempre (confirmado em uso real por Amaury, 2026-09-15).
     const ocrTimeout = new Promise((_,reject)=>setTimeout(()=>reject(Object.assign(new Error('ocr_timeout'),{code:'ocr_timeout'})), 25000));
     const workerPath = await buildOcrWorkerUrl();
     const result = await Promise.race([Tesseract.recognize(dataUrl, 'por', {workerPath, corePath:'core'}), ocrTimeout]);
@@ -3971,6 +4195,8 @@ function switchTab(tab){
   document.getElementById('tab-natacao').style.display = tab==='natacao' ? '' : 'none';
   document.getElementById('tab-crossfit').style.display = tab==='crossfit' ? '' : 'none';
   document.getElementById('tab-academia').style.display = tab==='academia' ? '' : 'none';
+  document.getElementById('tab-biblioteca').style.display = tab==='biblioteca' ? '' : 'none';
+  document.getElementById('tab-relatorios').style.display = tab==='relatorios' ? '' : 'none';
   document.getElementById('tab-progresso').style.display = tab==='progresso' ? '' : 'none';
   document.getElementById('tab-corpo').style.display = tab==='corpo' ? '' : 'none';
   document.getElementById('tab-agua').style.display = tab==='agua' ? '' : 'none';
@@ -3983,6 +4209,8 @@ function switchTab(tab){
   if(tab==='natacao') renderNatacaoTab();
   if(tab==='crossfit') renderCrossfitTab();
   if(tab==='academia') window.ForjaGymTraining?.render?.().then(()=>window.ForjaGymUI?.render?.());
+  if(tab==='biblioteca') window.ForjaGymOverview?.renderLibrary?.();
+  if(tab==='relatorios') window.ForjaGymOverview?.renderReports?.();
   if(tab==='progresso'){window.ForjaProgressCalendar?.init?.();window.ForjaProgressCalendar?.render?.();}
   if(tab==='corpo')window.ForjaWeightGoal?.render?.();
   if(tab==='dieta') renderDietTab();

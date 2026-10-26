@@ -18,7 +18,7 @@
 
 <script src="tesseract.min.js"></script>
 <script src="local-db.js"></script><script src="nutrition.js"></script></head>
-<body data-forja-variant="shared">
+<body>
 
 <header>
   <div class="brand-row">
@@ -45,6 +45,8 @@
       <button class="tab" data-tab="natacao" data-tab-group="treinos">🏊 Natação</button>
       <button class="tab" data-tab="crossfit" data-tab-group="treinos">🔥 CrossFit</button>
       <button class="tab" data-tab="academia" data-tab-group="treinos">🏋️ Academia</button>
+      <button class="tab" data-tab="biblioteca" data-tab-group="treinos">📚 Biblioteca</button>
+      <button class="tab" data-tab="relatorios" data-tab-group="treinos">📊 Relatórios</button>
       <button class="tab" data-tab="progresso" data-tab-group="saude">📅 Progresso</button>
       <button class="tab" data-tab="corpo" data-tab-group="saude">⚖️ Corpo</button>
       <button class="tab" data-tab="agua" data-tab-group="saude">💧 Água</button>
@@ -62,7 +64,7 @@
       <button type="button" class="section-guide-action secondary-btn" id="section-guide-switch">Trocar</button>
       <button type="button" class="section-guide-action secondary-btn" id="section-guide-help" aria-expanded="false" aria-controls="section-guide-text">Ajuda</button>
     </div>
-    <p id="section-guide-text" hidden></p>
+    <p id="section-guide-text" hidden></p><button type="button" class="secondary-btn" id="section-guide-tour" hidden>Ver passo a passo desta tela</button>
   </section>
 
   <!-- INÍCIO / DASHBOARD TAB -->
@@ -73,15 +75,23 @@
       <div class="row"><button type="button" class="primary" id="first-run-open-settings">Ver opções em Mais</button><button type="button" class="secondary-btn" id="first-run-dismiss">Entendi</button></div>
     </section>
 
+    <section class="home-hero" id="home-hero" aria-label="Resumo e ações de hoje">
+      <div class="home-hero-head"><div><small id="home-hero-date"></small><h2 id="home-hero-greeting">Seu dia no Forja</h2></div><span class="home-hero-mark">FORJA.TREINO</span></div>
+      <div class="home-hero-metrics"><div><strong id="home-hero-water">—</strong><span>Água</span></div><div><strong id="home-hero-steps">—</strong><span>Passos</span></div><div><strong id="home-hero-balance">—</strong><span>Saldo</span></div></div>
+      <div class="home-hero-actions"><button type="button" onclick="switchTab('dieta')">🍽 Refeição</button><button type="button" onclick="ForjaEnhancements.quickAdd('agua')">💧 +250 ml</button><button type="button" onclick="switchTab('academia')">🏋️ Treinar</button></div>
+      <button type="button" class="home-tour-button" onclick="ForjaTour.start('inicio')">Como usar o Forja</button>
+    </section>
+
     <div class="quote-card" id="quote-card">
       <div class="quote-text" id="quote-text"></div>
     </div>
     <details class="card bible-reader-card" id="bible-reader-card" data-home-card="biblia" open>
       <summary><strong id="bible-reader-title">📖 Leitura da Bíblia</strong><span id="bible-reader-status">Carregando…</span></summary>
       <div class="bible-reader-controls"><label>Livro<select id="bible-book" aria-label="Livro da Bíblia"></select></label><label>Capítulo<select id="bible-chapter" aria-label="Capítulo"></select></label></div>
+      <label class="bible-reading-date-label">Data em que leu este capítulo<input id="bible-reading-date" type="date" aria-label="Data da leitura bíblica"></label>
       <div class="bible-reader-actions"><button type="button" id="bible-prev">← Anterior</button><button type="button" id="bible-next">Próximo →</button><button type="button" id="bible-font-down" aria-label="Diminuir letra">A−</button><button type="button" id="bible-font-up" aria-label="Aumentar letra">A+</button></div>
       <div id="bible-verses" class="bible-verses" aria-live="polite"></div>
-      <button type="button" class="primary" id="bible-mark">Marcar capítulo como lido hoje</button>
+      <button type="button" class="primary" id="bible-mark">Marcar capítulo como lido</button>
       <p class="bible-source">Bíblia Portuguesa Mundial · domínio público · tradução em revisão.</p>
     </details>
 
@@ -96,6 +106,15 @@
       <div class="creatine-week-days" id="creatine-week-days" aria-label="Registro semanal de creatina"></div>
       <p class="creatine-week-note">A semana vai de segunda a domingo. Na segunda-feira, um novo painel começa automaticamente.</p>
     </section>
+    <details class="card supplements-card" id="supplements-card" data-home-card="suplementos"><summary>💊 Meus suplementos</summary>
+      <p class="calc-formula-note">Marque o que tomou hoje. Os valores nutricionais são apenas uma referência e não entram automaticamente na Dieta para evitar contagem dupla.</p>
+      <div id="supplements-today"></div>
+      <details><summary>Cadastrar suplemento</summary><form id="supplement-form" class="supplement-form">
+        <label>Nome<input id="supplement-name" maxlength="60" required placeholder="Ex.: whey"></label><label>Dose<input id="supplement-dose" maxlength="40" required placeholder="Ex.: 1 medida"></label>
+        <label>Calorias por dose, opcional<input id="supplement-kcal" type="number" min="0" max="2000" step="1" inputmode="decimal"></label>
+        <button type="submit" class="secondary-btn">Adicionar suplemento</button>
+      </form></details><p id="supplements-status" role="status"></p>
+    </details>
     <div id="custom-week-cards" data-home-card="custom-week-cards"></div>
 
     <div id="home-small-indicators" data-home-block="indicadores">
@@ -329,6 +348,27 @@
     </div>
   </div>
 
+  <!-- BIBLIOTECA E RELATÓRIOS DE ACADEMIA -->
+  <div id="tab-biblioteca" style="display:none">
+    <div class="card"><div class="card-head"><h2>📚 Biblioteca de exercícios</h2></div>
+      <p class="calc-formula-note">Pesquise por nome, músculo ou equipamento. Abra a demonstração e as instruções antes de usar um exercício no treino.</p>
+      <label for="library-search">Buscar exercício<input id="library-search" type="search" placeholder="Ex.: supino, remada, leg press"></label>
+      <div class="gym-library-filters"><label>Grupo muscular<select id="library-muscle"><option value="">Todos os grupos</option></select></label><label>Equipamento<select id="library-equipment"><option value="">Todos os equipamentos</option></select></label></div>
+      <label class="library-favorite-toggle"><input id="library-only-favorites" type="checkbox"> Apenas favoritos</label>
+      <p id="library-count" class="calc-formula-note"></p><div id="library-results" class="library-results"></div>
+      <button type="button" id="library-more" class="secondary-btn" hidden>Mostrar mais exercícios</button>
+    </div>
+  </div>
+  <div id="tab-relatorios" style="display:none">
+    <div class="card"><div class="card-head"><h2>📊 Evolução da Academia</h2></div>
+      <p class="calc-formula-note">Volume, tempo e recordes são calculados a partir das séries concluídas no Forja. A estimativa de 1 repetição máxima é uma aproximação, não um teste real.</p>
+      <div id="gym-report-summary" class="gym-report-summary"></div>
+      <div id="gym-report-weeks" class="gym-report-weeks"></div>
+      <details><summary>Recordes estimados por exercício</summary><div id="gym-report-records"></div></details>
+      <button type="button" class="secondary-btn" onclick="switchTab('progresso')">Ver calendário completo</button>
+    </div>
+  </div>
+
   <!-- PROGRESSO -->
   <div id="tab-progresso" style="display:none">
     <div class="card"><div class="card-head"><h2>📅 Progresso</h2></div>
@@ -507,6 +547,16 @@
 
     <div class="card" id="update-card">
       <div class="card-head"><h2>⬆ Atualizações</h2></div>
+      <details class="forja-release-notes">
+        <summary>Novidades desta versão</summary>
+        <ul>
+          <li>Início com resumo e atalhos para os registros do dia.</li>
+          <li>Dieta com acesso rápido aos tipos de refeição e alimentos recentes.</li>
+          <li>Academia com biblioteca de exercícios, fichas editáveis e relatórios.</li>
+          <li>Progresso mostra os critérios da sequência e permite registrar uma leitura bíblica feita após a virada do dia.</li>
+          <li>Suplementos opcionais e gráficos de meta de peso no Corpo.</li>
+        </ul>
+      </details>
       <p id="update-check-status" class="calc-formula-note">Verificação local ativa.</p>
       <label for="update-manifest-url">Endereço público de versões (opcional)</label><input id="update-manifest-url" type="url" placeholder="https://seu-site/forja-version.json">
       <button type="button" class="secondary-btn" onclick="ForjaUpdateCheck.saveFromUI()">Salvar verificação</button>
@@ -599,10 +649,19 @@
 
     <div class="card" id="diet-summary-card">
       <div class="card-head"><h2 id="diet-summary-title">🍽 Hoje</h2></div>
-      <button type="button" class="primary diet-entry-jump" onclick="const bloco=document.querySelector('#diet-add-card details');if(bloco)bloco.open=true;document.getElementById('diet-add-card').scrollIntoView({behavior:'smooth',block:'start'});bloco?.querySelector('summary')?.focus()">+ Adicionar refeição</button>
+      <p class="calc-formula-note">Toque na refeição para começar. Você pode acrescentar vários alimentos antes de confirmar.</p>
+      <div id="diet-quick-meals" class="diet-quick-meals" aria-label="Adicionar por tipo de refeição"></div>
       <div id="diet-rings"></div>
       <div id="diet-goal-compare"></div>
       <div id="deficit-streak-label" class="water-streak-label"></div>
+    </div>
+    <div id="diet-quick-sheet" class="diet-quick-sheet" hidden role="dialog" aria-modal="true" aria-labelledby="diet-quick-title">
+      <div class="diet-quick-sheet-backdrop" data-diet-quick-close></div>
+      <div class="diet-quick-sheet-panel"><div class="card-head"><h2 id="diet-quick-title">Adicionar refeição</h2><button type="button" class="secondary-btn" data-diet-quick-close aria-label="Fechar">Fechar</button></div>
+        <p class="calc-formula-note">Escolha uma forma de lançamento. Itens novos são acrescentados ao rascunho em andamento.</p>
+        <div class="diet-quick-methods" id="diet-quick-methods"></div>
+        <h3>Alimentos recentes</h3><div id="diet-quick-recents" class="diet-quick-recents"></div>
+      </div>
     </div>
 
     <div class="card" id="diet-add-card">
@@ -804,6 +863,8 @@
       <label for="weight-goal-date">Data desejada (opcional)</label><input id="weight-goal-date" type="date">
       <div class="settings-btn-row"><button type="button" class="primary" id="weight-goal-save">Salvar meta</button><button type="button" class="secondary-btn" id="weight-goal-clear">Remover meta</button></div>
       <div id="weight-goal-summary" class="weight-goal-summary" aria-live="polite"></div>
+      <div id="weight-goal-chart" class="weight-goal-chart"></div>
+      <div id="weight-goal-calorie-chart" class="weight-goal-chart"></div>
     </details>
 
     <details class="card training-extra" id="calorie-calc-card">
@@ -877,7 +938,7 @@
       <label>Meta diária (ml)</label>
       <div class="stepper-row">
         <button class="step-btn" onclick="adjustWaterGoal(-100)">−100</button>
-        <input type="text" inputmode="numeric" class="custom-amount-input" id="water-goal-display" value="2000" oninput="setWaterGoalFromInput()">
+        <input type="text" inputmode="numeric" class="custom-amount-input" id="water-goal-display" value="2100" oninput="setWaterGoalFromInput()">
         <button class="step-btn plus" onclick="adjustWaterGoal(100)">+100</button>
       </div>
 
@@ -1041,6 +1102,11 @@
 <script src="onboarding.js"></script>
 <script src="bible-reader.js"></script>
 <script src="app.js?v=20261024-weight-goal"></script>
+<script src="diet-quick-launch.js"></script>
+<script src="gym-overview.js"></script>
+<script src="home-hero.js"></script>
+<script src="supplements.js"></script>
+<script src="forja-tour.js"></script>
 <script src="finance-core.js?v=20261015"></script>
 <script src="finance-xp.js?v=2"></script>
 <script src="finance-pdf.js?v=2"></script>
@@ -1070,6 +1136,7 @@
 <script src="wod-library.js"></script>
 <script src="app-enhancements.js?v=20261024-diet-close"></script>
 <script src="gym-guided-start.js?v=20261024"></script>
+<script src="gym-suggest.js"></script>
 <script src="weight-goal.js?v=20261024"></script>
 <script src="drive-backup.js?v=20261024"></script>
 <script src="section-guide.js?v=20261024"></script>
@@ -1078,6 +1145,9 @@
 <script>forjaInitialization.then(()=>ForjaStravaUI.init()).then(()=>ForjaStravaUI.sync()).catch(e=>console.error('Strava:',e));</script>
 <script>forjaInitialization.then(()=>ForjaEstimateUI.init()).catch(e=>console.error('Referências:',e));</script>
 <script>forjaInitialization.then(()=>ForjaPersonalization.init()).then(()=>ForjaDietFlow.init()).then(()=>ForjaRoutineDiet.init()).catch(e=>console.error('Dieta:',e));</script>
+<script>forjaInitialization.then(()=>ForjaDietQuick.init()).catch(e=>console.error('Acesso rápido à Dieta:',e));</script>
+<script>forjaInitialization.then(()=>ForjaGymOverview.init()).catch(e=>console.error('Biblioteca e relatórios:',e));</script>
+<script>forjaInitialization.then(()=>ForjaSupplements.init()).catch(e=>console.error('Suplementos:',e));</script>
 <script>forjaInitialization.then(()=>ForjaWodLibrary.init()).catch(e=>console.error('WODs:',e));</script>
 <script>forjaInitialization.then(()=>ForjaHealthConnect.init()).catch(e=>console.error('Health Connect:',e));</script>
 <script>forjaInitialization.then(()=>ForjaEnhancements.init()).catch(e=>console.error('Aprimoramentos:',e));</script>
@@ -1087,6 +1157,7 @@
 <script>forjaInitialization.then(()=>ForjaWeightGoal.init()).catch(e=>console.error('Meta de peso:',e));</script>
 <script>forjaInitialization.then(()=>ForjaDriveBackup.init()).catch(e=>console.error('Cópias no Drive:',e));</script>
 <script>forjaInitialization.then(()=>ForjaBackupStatus.render()).catch(e=>console.error('Backup:',e));</script>
+<script>if(location.protocol==='https:'&&'serviceWorker' in navigator){navigator.serviceWorker.register('./service-worker.js').catch(e=>console.warn('Uso offline indisponível:',e));}</script>
 </body>
 </html>
 

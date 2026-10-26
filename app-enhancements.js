@@ -4,7 +4,7 @@
   else root.ForjaEnhancements=api;
 })(typeof window!=='undefined'?window:globalThis,function(root){
   'use strict';
-  const OPTIONAL_TABS=['corrida','natacao','crossfit','academia','progresso','corpo','agua','dieta','cardapio','importar'];
+  const OPTIONAL_TABS=['corrida','natacao','crossfit','academia','biblioteca','relatorios','progresso','corpo','agua','dieta','cardapio','importar'];
   const ALL_TABS=['inicio',...OPTIONAL_TABS,'mais'];
   const STORAGE_KEY='visible-tabs-v1';
   function normalizeVisibleTabs(value){
@@ -40,7 +40,7 @@
     return {balance,eaten,exercise,loggedDays:logged.length,closedDays:closed.length,measuredDays:measured.length,partialDays:logged.length-closed.length,goalBalance,tone:balance==null?'empty':balanceTone(balance/measured.length)};
   }
   let visible=normalizeVisibleTabs(),selectedGroup='treinos';
-  const TAB_GROUPS={corrida:'treinos',natacao:'treinos',crossfit:'treinos',academia:'treinos',progresso:'saude',corpo:'saude',agua:'saude',dieta:'saude',cardapio:'organizar',importar:'organizar'};
+  const TAB_GROUPS={corrida:'treinos',natacao:'treinos',crossfit:'treinos',academia:'treinos',biblioteca:'treinos',relatorios:'treinos',progresso:'saude',corpo:'saude',agua:'saude',dieta:'saude',cardapio:'organizar',importar:'organizar'};
   function showTabGroupFor(tab){const group=TAB_GROUPS[tab];if(group&&group!==selectedGroup){selectedGroup=group;applyVisibleTabs();}}
   function setTabGroup(group){if(!['treinos','saude','organizar'].includes(group))return;selectedGroup=group;applyVisibleTabs();}
   function applyVisibleTabs(){
