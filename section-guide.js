@@ -22,26 +22,15 @@
   const tourButton = document.getElementById('section-guide-tour');
   const tabs = document.querySelector('.tabs');
   if (!guide || !tabs) return;
-  let lastTab='inicio';
-
   function render() {
     const active = tabs.querySelector('.tab.active[data-tab]');
     const key = active?.dataset.tab;
     guide.hidden = !key || key === 'inicio';
-    document.body.classList.toggle('forja-in-section', !guide.hidden);
-    if(key!==lastTab){document.body.classList.remove('forja-tabs-open');lastTab=key;}
+    document.body.classList.remove('forja-in-section','forja-tabs-open');
     if (guide.hidden) return;
     title.textContent = active.textContent.trim().replace(/^[^\p{L}\p{N}]+/u, '');
     helpText.textContent = descriptions[key] || 'Consulte e registre suas informações nesta seção.';
   }
-  document.getElementById('section-guide-home').addEventListener('click', () => window.switchTab?.('inicio'));
-  document.getElementById('section-guide-switch').addEventListener('click', () => {
-    document.body.classList.toggle('forja-tabs-open');
-    if(!document.body.classList.contains('forja-tabs-open'))return;
-    tabs.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    const active = tabs.querySelector('.tab.active[data-tab]');
-    (active || tabs.querySelector('.tab[data-tab]'))?.focus({ preventScroll: true });
-  });
   help.addEventListener('click', () => {
     const open = help.getAttribute('aria-expanded') !== 'true';
     help.setAttribute('aria-expanded', String(open));

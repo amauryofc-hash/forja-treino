@@ -30,9 +30,7 @@
    ['checkpoint-card','💾 Salvar tudo'],
    ['reset-dados-card','🗑️ Zerar dados anteriores']
   ])foldCard(doc.getElementById(id),title);
-  const diet=doc.getElementById('diet-simple')?.closest('.card');
-  if(diet){diet.id='diet-add-card';foldCard(diet,'➕ Adicionar refeição');}
  }
- function openDiet(){const form=root.document.querySelector('#diet-add-card > details.forja-fold');if(form)form.setAttribute('open','');}
+ function openDiet(){root.ForjaDietQuick?.open?.();}
  root.ForjaPanels={init,openDiet};
 })(globalThis);

@@ -13,12 +13,12 @@
 <meta name="apple-mobile-web-app-title" content="Forja.Treino">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Rajdhani:wght@500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="app.css?v=20261024-aurora">
+<link rel="stylesheet" href="app.css?v=20261026-ota2">
 <link rel="stylesheet" href="finance.css?v=20261020-buttons">
 
 <script src="tesseract.min.js"></script>
 <script src="local-db.js"></script><script src="nutrition.js"></script></head>
-<body>
+<body data-forja-variant="shared">
 
 <header>
   <div class="brand-row">
@@ -59,9 +59,7 @@
 
   <section class="section-guide" id="section-guide" aria-label="Orientação da seção" hidden>
     <div class="section-guide-bar">
-      <button type="button" class="section-guide-home secondary-btn" id="section-guide-home">Início</button>
       <strong id="section-guide-title"></strong>
-      <button type="button" class="section-guide-action secondary-btn" id="section-guide-switch">Trocar</button>
       <button type="button" class="section-guide-action secondary-btn" id="section-guide-help" aria-expanded="false" aria-controls="section-guide-text">Ajuda</button>
     </div>
     <p id="section-guide-text" hidden></p><button type="button" class="secondary-btn" id="section-guide-tour" hidden>Ver passo a passo desta tela</button>
@@ -76,9 +74,14 @@
     </section>
 
     <section class="home-hero" id="home-hero" aria-label="Resumo e ações de hoje">
-      <div class="home-hero-head"><div><small id="home-hero-date"></small><h2 id="home-hero-greeting">Seu dia no Forja</h2></div><span class="home-hero-mark">FORJA.TREINO</span></div>
-      <div class="home-hero-metrics"><div><strong id="home-hero-water">—</strong><span>Água</span></div><div><strong id="home-hero-steps">—</strong><span>Passos</span></div><div><strong id="home-hero-balance">—</strong><span>Saldo</span></div></div>
-      <div class="home-hero-actions"><button type="button" onclick="switchTab('dieta')">🍽 Refeição</button><button type="button" onclick="ForjaEnhancements.quickAdd('agua')">💧 +250 ml</button><button type="button" onclick="switchTab('academia')">🏋️ Treinar</button></div>
+      <div class="home-hero-panel"><small id="home-hero-date"></small><h2 id="home-hero-greeting">Seu dia no Forja</h2>
+        <div class="home-hero-metrics">
+          <div class="home-hero-ring" id="home-hero-training-ring"><strong id="home-hero-training">—</strong><span>Treino</span></div>
+          <div class="home-hero-ring" id="home-hero-water-ring"><strong id="home-hero-water">—</strong><span>Água</span></div>
+          <div class="home-hero-ring" id="home-hero-food-ring"><strong id="home-hero-food">—</strong><span>kcal ingeridas</span></div>
+        </div><p id="home-hero-situation">Carregando seu resumo…</p>
+      </div>
+      <div class="home-hero-actions"><button type="button" onclick="switchTab('dieta')"><span>🍽</span><strong>Refeição</strong></button><button type="button" onclick="ForjaEnhancements.quickAdd('agua')"><span>💧</span><strong>+250 ml</strong></button><button type="button" onclick="switchTab('academia')"><span>🏋️</span><strong>Treinar</strong></button><button type="button" aria-label="Ir para suplementos" onclick="ForjaHomeHero.openSupplements()"><span>💊</span><strong>Suplem.</strong></button></div>
       <button type="button" class="home-tour-button" onclick="ForjaTour.start('inicio')">Como usar o Forja</button>
     </section>
 
@@ -105,16 +108,15 @@
       </div>
       <div class="creatine-week-days" id="creatine-week-days" aria-label="Registro semanal de creatina"></div>
       <p class="creatine-week-note">A semana vai de segunda a domingo. Na segunda-feira, um novo painel começa automaticamente.</p>
-    </section>
-    <details class="card supplements-card" id="supplements-card" data-home-card="suplementos"><summary>💊 Meus suplementos</summary>
-      <p class="calc-formula-note">Marque o que tomou hoje. Os valores nutricionais são apenas uma referência e não entram automaticamente na Dieta para evitar contagem dupla.</p>
+      <div class="supplements-card" id="supplements-card"><h3>💊 Outros suplementos de hoje</h3>
       <div id="supplements-today"></div>
-      <details><summary>Cadastrar suplemento</summary><form id="supplement-form" class="supplement-form">
+      <details id="supplement-manage"><summary>+ Outro suplemento</summary><form id="supplement-form" class="supplement-form">
         <label>Nome<input id="supplement-name" maxlength="60" required placeholder="Ex.: whey"></label><label>Dose<input id="supplement-dose" maxlength="40" required placeholder="Ex.: 1 medida"></label>
         <label>Calorias por dose, opcional<input id="supplement-kcal" type="number" min="0" max="2000" step="1" inputmode="decimal"></label>
         <button type="submit" class="secondary-btn">Adicionar suplemento</button>
-      </form></details><p id="supplements-status" role="status"></p>
-    </details>
+      </form><p class="calc-formula-note">Os suplementos não entram automaticamente na Dieta para evitar contagem dupla.</p><div id="supplements-manage-list"></div></details><p id="supplements-status" role="status"></p>
+      </div>
+    </section>
     <div id="custom-week-cards" data-home-card="custom-week-cards"></div>
 
     <div id="home-small-indicators" data-home-block="indicadores">
@@ -551,16 +553,16 @@
         <summary>Novidades desta versão</summary>
         <ul>
           <li>Início com resumo e atalhos para os registros do dia.</li>
-          <li>Dieta com acesso rápido aos tipos de refeição e alimentos recentes.</li>
+          <li>Dieta com um único lançamento de refeição, métodos combináveis e revisão antes de salvar.</li>
           <li>Academia com biblioteca de exercícios, fichas editáveis e relatórios.</li>
           <li>Progresso mostra os critérios da sequência e permite registrar uma leitura bíblica feita após a virada do dia.</li>
           <li>Suplementos opcionais e gráficos de meta de peso no Corpo.</li>
         </ul>
       </details>
-      <p id="update-check-status" class="calc-formula-note">Verificação local ativa.</p>
-      <label for="update-manifest-url">Endereço público de versões (opcional)</label><input id="update-manifest-url" type="url" placeholder="https://seu-site/forja-version.json">
-      <button type="button" class="secondary-btn" onclick="ForjaUpdateCheck.saveFromUI()">Salvar verificação</button>
-      <p class="calc-formula-note">Antes de instalar outra versão, exporte um backup. O aplicativo nunca instala APK silenciosamente.</p>
+      <p id="ota-update-status" class="calc-formula-note" role="status">Verificando novidades no GitHub…</p>
+      <button id="ota-update-apply" type="button" class="primary" hidden onclick="ForjaOtaUpdate.apply()">Atualizar conteúdo pelo GitHub</button>
+      <button type="button" class="secondary-btn" onclick="ForjaOtaUpdate.check()">Verificar atualizações</button>
+      <p class="calc-formula-note">Atualizações de conteúdo preservam seus registros neste aparelho. Alterações em permissões e recursos do Android ainda precisam de um novo APK.</p>
     </div>
 
     <div class="card" id="gdrive-card">
@@ -649,39 +651,30 @@
 
     <div class="card" id="diet-summary-card">
       <div class="card-head"><h2 id="diet-summary-title">🍽 Hoje</h2></div>
-      <p class="calc-formula-note">Toque na refeição para começar. Você pode acrescentar vários alimentos antes de confirmar.</p>
-      <div id="diet-quick-meals" class="diet-quick-meals" aria-label="Adicionar por tipo de refeição"></div>
+      <div id="diet-quick-meals" class="diet-quick-meals" aria-label="Lançar refeição"></div>
       <div id="diet-rings"></div>
       <div id="diet-goal-compare"></div>
       <div id="deficit-streak-label" class="water-streak-label"></div>
     </div>
-    <div id="diet-quick-sheet" class="diet-quick-sheet" hidden role="dialog" aria-modal="true" aria-labelledby="diet-quick-title">
-      <div class="diet-quick-sheet-backdrop" data-diet-quick-close></div>
-      <div class="diet-quick-sheet-panel"><div class="card-head"><h2 id="diet-quick-title">Adicionar refeição</h2><button type="button" class="secondary-btn" data-diet-quick-close aria-label="Fechar">Fechar</button></div>
-        <p class="calc-formula-note">Escolha uma forma de lançamento. Itens novos são acrescentados ao rascunho em andamento.</p>
-        <div class="diet-quick-methods" id="diet-quick-methods"></div>
-        <h3>Alimentos recentes</h3><div id="diet-quick-recents" class="diet-quick-recents"></div>
-      </div>
-    </div>
-
-    <div class="card" id="diet-add-card">
-      <div class="card-head"><h2>➕ Adicionar refeição</h2></div>
-      <div class="calc-formula-note">Escolha a refeição e use uma das formas abaixo. Café, almoço, lanche, jantar e livre aceitam qualquer alimento.</div>
+    <div id="diet-add-backdrop" class="diet-entry-backdrop" hidden></div>
+    <div class="card diet-entry-panel" id="diet-add-card" hidden role="dialog" aria-modal="true" aria-labelledby="diet-entry-title">
+      <div class="card-head diet-entry-head"><h2 id="diet-entry-title">Adicionar refeição</h2><button type="button" id="diet-entry-close" class="secondary-btn">Fechar</button></div>
+      <div class="calc-formula-note">Escolha a refeição e como quer registrar. Você pode combinar métodos sem perder os alimentos já adicionados.</div>
 
       <label>Tipo de refeição</label>
       <div class="meal-type-grid" id="diet-meal-type-grid"></div>
       <section id="diet-simple" aria-label="Lançar refeição">
-        <p class="diet-step">Escolha como lançar</p>
+        <p class="diet-step">Como deseja adicionar?</p>
         <div class="diet-method-choices" role="group" aria-label="Forma de lançamento">
-          <button type="button" class="active" aria-pressed="true" data-diet-method="text" onclick="ForjaDietFlow.showMethod('text')">📋 Colar texto</button>
+          <button type="button" class="active" aria-pressed="true" data-diet-method="food" onclick="ForjaDietFlow.showMethod('food')">🔎 Buscar alimento</button>
           <button type="button" aria-pressed="false" data-diet-method="barcode" onclick="ForjaDietFlow.showMethod('barcode')">▥ Código de barras</button>
-          <button type="button" aria-pressed="false" data-diet-method="custom" onclick="ForjaDietFlow.showMethod('custom')">🏷️ Cadastrar pelo rótulo</button>
           <button type="button" aria-pressed="false" data-diet-method="photo" onclick="ForjaDietFlow.showMethod('photo')">📷 Foto</button>
-          <button type="button" aria-pressed="false" data-diet-method="food" onclick="ForjaDietFlow.showMethod('food')">🔎 Tabela de alimentos</button>
+          <button type="button" aria-pressed="false" data-diet-method="text" onclick="ForjaDietFlow.showMethod('text')">📋 Colar texto</button>
+          <button type="button" aria-pressed="false" data-diet-method="custom" onclick="ForjaDietFlow.showMethod('custom')">🏷️ Cadastrar produto</button>
         </div>
-        <p class="diet-step">1 · Informe o que consumiu</p><p id="draft-state" class="calc-formula-note" role="status">Seu lançamento fica em rascunho até salvar.</p>
+         <p id="draft-state" class="calc-formula-note" role="status">Os alimentos ficam nesta refeição até você salvar.</p>
         <button id="draft-resume" hidden type="button" class="dica-add-btn" onclick="ForjaRoutineDiet.resumeDraft()">Retomar último rascunho</button>
-        <details id="quick-entry" class="routine-panel" open><summary>📋 Colar texto pronto ou preencher manualmente</summary>
+         <details id="quick-entry" class="routine-panel"><summary>📋 Colar texto pronto ou preencher manualmente</summary>
           <p>Cole o resultado do ChatGPT ou preencha os campos. Os valores confirmados aqui não serão trocados pelos do catálogo.</p>
           <label for="quick-paste">Texto com os totais da refeição</label><textarea id="quick-paste" rows="3" placeholder="Barrinha marca A — 190 kcal, 15 g proteína, 20 g carboidratos, 6 g gorduras"></textarea>
           <button type="button" class="dica-add-btn" onclick="ForjaRoutineDiet.parseQuick()">Interpretar texto</button>
@@ -692,7 +685,6 @@
             <div class="nutrient-fields"><label>Proteínas (g)<input id="quick-protein_g" type="number" min="0" step="any" placeholder="Não informado"></label><label>Carboidratos (g)<input id="quick-carbs_g" type="number" min="0" step="any" placeholder="Não informado"></label><label>Gorduras (g)<input id="quick-fat_g" type="number" min="0" step="any" placeholder="Não informado"></label></div>
             <p class="calc-formula-note">Deixar em branco significa “não informado”. Zero significa que o alimento não tem esse nutriente.</p>
             <button type="button" class="primary diet-save" onclick="ForjaRoutineDiet.addQuick()">Adicionar à revisão</button>
-            <p class="calc-formula-note">Depois, confira os alimentos abaixo e use o único botão “Salvar refeição”.</p>
           </div>
         </details>
         <details id="barcode-panel" class="routine-panel"><summary>▥ Buscar por código de barras</summary>
@@ -709,7 +701,7 @@
           <button type="button" class="dica-add-btn" onclick="ForjaDietFlow.openCustom()">Não encontrei: informar rótulo</button>
         </details>
         <details id="diet-photo-method" class="routine-panel"><summary>📷 Analisar foto no Forja</summary><div id="diet-simple-photo-panel"><button type="button" class="dica-add-btn" onclick="ForjaRoutineDiet.retryPhoto()">Analisar novamente a foto escolhida</button>
-<p class="calc-formula-note">Usa Llama · IA hospedada na Cloudflare.</p>
+<p class="calc-formula-note">A foto é analisada pelo modelo configurado no seu serviço Cloudflare.</p>
           <p id="diet-ai-status" class="calc-formula-note" role="status">Se a análise já funcionou neste aparelho, escolha a foto diretamente. A ativação só é necessária na primeira vez.</p>
           <details id="diet-ai-setup"><summary>Ativar IA pela primeira vez</summary>
             <p class="calc-formula-note">É necessário estar conectado ao serviço na área Strava. O modelo exige o aceite da <a href="https://github.com/meta-llama/llama-models/blob/main/models/llama3_2/LICENSE" target="_blank" rel="noopener">licença Meta</a> e da <a href="https://github.com/meta-llama/llama-models/blob/main/models/llama3_2/USE_POLICY.md" target="_blank" rel="noopener">política de uso</a>.</p>
@@ -722,12 +714,8 @@
           <button id="diet-simple-photo-remove" type="button" class="dica-add-btn" hidden>Remover foto</button>
         </div></details>
         <div id="diet-simple-manual">
-          <details id="diet-table-panel" class="routine-panel"><summary>🔎 Buscar alimentos na tabela</summary>
-            <textarea id="diet-simple-text" rows="3" placeholder="Ex: arroz 200g, frango 120g, banana 75g"></textarea>
-            <button type="button" class="dica-add-btn" onclick="ForjaVoiceInput.dictate('diet-simple-text','diet-voice-status')">🎙️ Ditar alimentos</button><p id="diet-voice-status" class="calc-formula-note" role="status">O reconhecimento de voz usa o serviço configurado no celular e pode precisar de internet. Confira o texto antes de adicionar.</p>
-            <button id="diet-simple-parse" type="button" class="dica-add-btn">Acrescentar alimentos do texto</button>
-            <p class="calc-formula-note">O catálogo apenas sugere referências. Confira preparação, quantidade e calorias antes de salvar.</p>
-          <details id="diet-add-panel"><summary>Buscar alimento da tabela ou cadastrar rótulo</summary>
+           <details id="diet-table-panel" class="routine-panel" open><summary>🔎 Buscar alimentos na tabela</summary>
+           <details id="diet-add-panel" open><summary>Buscar um alimento</summary>
             <label for="diet-simple-search">Buscar alimento ou produto</label><input id="diet-simple-search" type="search" placeholder="Ex: arroz, frango">
             <label><input id="diet-simple-all" type="checkbox"> Mostrar lista completa (a busca inclui todos)</label>
             <select id="diet-simple-food" aria-label="Meus alimentos"></select>
@@ -749,12 +737,19 @@
               <p id="diet-label-summary" class="calc-formula-note" role="status"></p>
               <button id="diet-custom-save" type="button" class="dica-add-btn">Adicionar produto à refeição</button>
             </details>
-          </details></details>
+           </details>
+           <details id="diet-bulk-panel"><summary>Adicionar vários pelo texto ou voz</summary>
+             <textarea id="diet-simple-text" rows="3" placeholder="Ex: arroz 200g, frango 120g, banana 75g"></textarea>
+             <button type="button" class="dica-add-btn" onclick="ForjaVoiceInput.dictate('diet-simple-text','diet-voice-status')">🎙️ Ditar alimentos</button><p id="diet-voice-status" class="calc-formula-note" role="status">Confira o texto reconhecido antes de acrescentar.</p>
+             <button id="diet-simple-parse" type="button" class="dica-add-btn">Acrescentar alimentos do texto</button>
+           </details>
+           <p class="calc-formula-note">Confira preparação, quantidade e calorias antes de salvar.</p>
+           </details>
         </div>
         <details id="diet-recipes-panel" class="routine-panel"><summary>🍲 Minhas receitas</summary><p>Monte os ingredientes na refeição atual e guarde a combinação. Depois, acrescente uma porção com um toque. As receitas ficam somente neste aparelho e não substituem os itens já lançados.</p><label>Nome da receita<input id="diet-recipe-name" maxlength="80" placeholder="Ex.: almoço caseiro"></label><label>Quantas porções rende?<input id="diet-recipe-servings" type="number" min="1" max="100" value="1"></label><button id="diet-recipe-save" type="button" class="dica-add-btn">Guardar refeição atual como receita</button><label>Receitas guardadas<select id="diet-recipe-select"></select></label><div class="diet-recipe-actions"><button id="diet-recipe-add" type="button" class="dica-add-btn">Acrescentar 1 porção</button><button id="diet-recipe-remove" type="button" class="dica-add-btn">Remover receita</button></div><p id="diet-recipe-message" role="status"></p></details>
         <details id="diet-plan-panel" class="routine-panel"><summary>🍽 Usar opção do meu cardápio</summary><p>Atalho opcional: os itens escolhidos serão acrescentados à refeição em andamento.</p><button type="button" class="dica-add-btn" onclick="ForjaRoutineDiet.usePlan()">Acrescentar itens do cardápio</button><label for="diet-simple-option" id="diet-simple-option-label" hidden>Opções do cardápio</label><select id="diet-simple-option" hidden></select></details>
         <p id="diet-simple-status" role="status" class="calc-formula-note">Escolha a refeição para carregar as porções.</p>
-        <p class="diet-step" id="diet-detailed-review-title">2 · Confira os alimentos adicionados</p><div id="diet-simple-items"></div>
+         <p class="diet-step" id="diet-detailed-review-title">Confira os alimentos adicionados</p><div id="diet-simple-items"></div>
         <p id="diet-simple-total" aria-live="polite"></p>
         <p id="diet-simple-sources" class="calc-formula-note" aria-live="polite" hidden></p>
         <button id="diet-simple-save" type="button" class="primary diet-save" disabled>Salvar refeição</button>
@@ -1097,6 +1092,7 @@
 <script src="muscle-map.js?v=20261002-crossfit-volume"></script>
 <script src="progress-calendar.js"></script>
 <script src="update-check.js"></script>
+<script src="ota-update.js"></script>
 <script src="creatine-tracker.js"></script>
 <script src="custom-week-cards.js?v=20261003-history"></script>
 <script src="onboarding.js"></script>
@@ -1151,7 +1147,7 @@
 <script>forjaInitialization.then(()=>ForjaWodLibrary.init()).catch(e=>console.error('WODs:',e));</script>
 <script>forjaInitialization.then(()=>ForjaHealthConnect.init()).catch(e=>console.error('Health Connect:',e));</script>
 <script>forjaInitialization.then(()=>ForjaEnhancements.init()).catch(e=>console.error('Aprimoramentos:',e));</script>
-<script>forjaInitialization.then(()=>ForjaDataFoundation.migrate()).then(()=>Promise.all([ForjaSyncCenter.render(),ForjaDashboardLayout.apply(),ForjaDashboardLayout.renderSettings(),ForjaWeeklyReport.render(),ForjaGymTraining.init().then(()=>ForjaGymUI.init()),ForjaPrivacyLock.init(),ForjaUpdateCheck.render(),ForjaCustomWeekCards.init()])).catch(e=>console.error('Modernização:',e));</script>
+<script>forjaInitialization.then(()=>ForjaDataFoundation.migrate()).then(()=>Promise.all([ForjaSyncCenter.render(),ForjaDashboardLayout.apply(),ForjaDashboardLayout.renderSettings(),ForjaWeeklyReport.render(),ForjaGymTraining.init().then(()=>ForjaGymUI.init()),ForjaPrivacyLock.init(),ForjaOtaUpdate.init(),ForjaCustomWeekCards.init()])).catch(e=>console.error('Modernização:',e));</script>
 <script>forjaInitialization.then(()=>ForjaOnboarding.init()).catch(e=>console.error('Primeiros passos:',e));</script>
 <script>forjaInitialization.then(()=>ForjaReminders.init()).catch(e=>console.error('Avisos:',e));</script>
 <script>forjaInitialization.then(()=>ForjaWeightGoal.init()).catch(e=>console.error('Meta de peso:',e));</script>

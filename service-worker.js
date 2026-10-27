@@ -1,5 +1,5 @@
 /* Cache apenas arquivos públicos do aplicativo. Registros pessoais continuam no aparelho. */
-const CACHE = 'forja-publico-20261025-1';
+const CACHE = 'forja-publico-20261026-1';
 const PREFIX = 'forja-publico-';
 const SHELL = ['./', './index.html', './app.css'];
 

@@ -1008,7 +1008,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .supplements-card>summary{font-weight:800;cursor:pointer}.supplement-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;margin:8px 0}.supplement-row button:first-child{text-align:left}.supplement-row [aria-pressed="true"]{border-color:#54c88f;color:#a0ebbf}.supplement-form{display:grid;gap:9px;margin-top:10px}.supplement-form input{width:100%;margin-top:4px}
 .weight-goal-chart{margin:12px 0;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--panel-2)}.weight-goal-chart h3{margin:0 0 8px}.weight-goal-chart svg{width:100%;height:auto;max-height:185px}.weight-goal-chart p{font-size:.83em;color:var(--muted)}.weight-goal-calorie-bars{display:flex;align-items:flex-end;gap:4px;overflow-x:auto;min-height:132px;padding:12px 2px}.weight-goal-calorie-day{display:grid;justify-items:center;align-items:end;gap:3px;min-width:37px;font-size:.72em}.weight-goal-calorie-day i{display:block;width:15px;border-radius:5px 5px 0 0;background:#ff5269}.weight-goal-calorie-day small{white-space:nowrap}
 .home-tour-button{margin-top:10px;border:0;background:none;color:#e7b6bf;text-decoration:underline;font-size:.78em;padding:6px}.forja-tour-backdrop{position:fixed;inset:0;z-index:1500;background:rgba(0,0,0,.35)}.forja-tour-spotlight{position:fixed;z-index:1501;border:2px solid #ff6378;border-radius:12px;box-shadow:0 0 0 9999px rgba(0,0,0,.62);pointer-events:none}.forja-tour-dialog{position:fixed;z-index:1502;left:10px;right:10px;bottom:max(10px,env(safe-area-inset-bottom));max-width:520px;margin:auto;padding:16px;border:1px solid #ff6378;border-radius:16px;background:#1d2228;color:#fff;box-shadow:0 14px 45px rgba(0,0,0,.5)}.forja-tour-dialog h3{margin:0 0 8px}.forja-tour-dialog p{margin:0 0 10px}.forja-tour-actions{display:flex;gap:7px;margin-top:10px}.forja-tour-actions button{flex:1;min-height:42px}#section-guide-tour{display:block;margin:4px 0 9px;width:100%}#section-guide-tour[hidden]{display:none}
-body.forja-in-section .tabs{display:none}body.forja-in-section.forja-tabs-open .tabs{display:flex}body.forja-in-section .section-guide{display:block;margin:6px 0 12px;padding:7px;border:1px solid var(--line);border-radius:14px;background:var(--panel-2)}body.forja-in-section .section-guide-bar{display:flex;align-items:center;gap:7px}body.forja-in-section .section-guide-bar strong{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}body.forja-in-section .section-guide-bar button{min-height:40px;width:auto;white-space:nowrap}body.forja-in-section .section-guide-bar #section-guide-help{padding-inline:9px}
+body.forja-in-section .tabs{display:flex}body.forja-in-section .section-guide{display:block;margin:6px 0 12px;padding:7px;border:1px solid var(--line);border-radius:14px;background:var(--panel-2)}body.forja-in-section .section-guide-bar{display:flex;align-items:center;gap:7px}body.forja-in-section .section-guide-bar strong{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}body.forja-in-section .section-guide-bar button{min-height:40px;width:auto;white-space:nowrap}body.forja-in-section .section-guide-bar #section-guide-help{padding-inline:9px}
 .progress-dots .diet:not(.complete){background:transparent;border:1px solid #f4b851}.progress-dots .water:not(.complete){background:transparent;border:1px solid #58baff}
 .progress-day-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}.progress-day-actions button{flex:1 1 110px;min-height:42px;text-align:center}
 .muscle-map-views{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;max-width:560px;margin:8px auto 2px}.muscle-map-views figure{margin:0;padding:12px 6px 8px;border:1px solid var(--line);border-radius:14px;background:var(--panel-2);text-align:center}.muscle-map-views figcaption{font-size:13px;font-weight:700;color:var(--text)}.muscle-map-views svg{display:block;width:100%;height:330px;max-height:52vh;margin:4px auto}.muscle-map-views svg path[data-muscle]{transition:fill .2s ease}.muscle-map-legend{display:flex;justify-content:center;flex-wrap:wrap;gap:8px 14px;margin:10px 0;font-size:11px;color:var(--muted)}.muscle-map-legend span{display:inline-flex;align-items:center;gap:5px}.muscle-map-legend i{display:inline-block;width:12px;height:12px;border-radius:3px}.muscle-map-legend .idle{background:#69707a}.muscle-map-legend .medium{background:#f2c94c}.muscle-map-legend .high{background:#ef334e}
@@ -1214,3 +1214,64 @@ body[data-theme="aurora"] .import-section-header.treino{background:linear-gradie
 .forja-release-notes{margin:12px 0;padding:10px 14px;border:1px solid var(--line);border-radius:12px;background:var(--panel-2)}
 .forja-release-notes summary{cursor:pointer;font-weight:700;min-height:36px;display:flex;align-items:center}
 .forja-release-notes ul{margin:10px 0 2px;padding-left:20px;line-height:1.55}
+.home-hero{padding:0;border:0;background:none;box-shadow:none}
+.home-hero-panel{padding:16px 14px 13px;border:1px solid rgba(255,255,255,.14);border-radius:24px;background:radial-gradient(220px 160px at 100% 0%,rgba(255,42,70,.32),transparent 70%),linear-gradient(160deg,#24070d,#121215 62%);box-shadow:0 14px 30px rgba(0,0,0,.35)}
+.home-hero-panel>small{display:block;color:#f4afb7;text-transform:capitalize;font-size:.82rem}
+.home-hero-panel h2{margin:5px 0 12px;font-size:1.65rem;line-height:1.15}
+.home-hero-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;margin:0}
+.home-hero-metrics>.home-hero-ring{--ring-color:#f25a70;position:relative;display:flex;align-items:center;justify-content:flex-end;flex-direction:column;gap:4px;height:110px;padding:0;background:none;text-align:center}
+.home-hero-ring::before,.home-hero-ring::after{content:'';position:absolute;top:0;left:50%;transform:translateX(-50%);border-radius:50%}
+.home-hero-ring::before{width:78px;height:78px;background:conic-gradient(var(--ring-color) var(--progress,0%),rgba(255,255,255,.13) 0)}
+.home-hero-ring::after{top:7px;width:64px;height:64px;background:#241d22}
+.home-hero-ring strong{position:absolute;z-index:1;top:27px;width:90%;font-size:1rem;line-height:1.2;overflow-wrap:normal}
+.home-hero-ring span{font-size:.75rem;color:#e7dfe1;white-space:nowrap}
+#home-hero-water-ring{--ring-color:#55b6ed}#home-hero-food-ring{--ring-color:#f3bd5d}
+#home-hero-situation{margin:9px 0 0;text-align:center;color:#f0c5ce;font-size:.82rem;line-height:1.4}
+.home-hero-actions{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;margin-top:8px}
+.home-hero-actions button{display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;gap:6px;min-height:76px;padding:9px 8px;border:1px solid var(--line);border-radius:16px;background:var(--panel-2);color:var(--text)}
+.home-hero-actions button:first-child{background:var(--panel-2);border-color:var(--line)}
+.home-hero-actions button span{width:30px;height:30px;display:grid;place-items:center;border-radius:9px;background:rgba(80,200,140,.15);font-size:.95rem;line-height:1}.home-hero-actions button strong{font-size:.75rem;line-height:1.1;white-space:nowrap}
+.home-hero-actions button:nth-child(2) span{background:rgba(90,168,255,.18)}.home-hero-actions button:nth-child(3) span{background:rgba(255,42,70,.18)}.home-hero-actions button:nth-child(4) span{background:rgba(255,181,71,.18)}
+.home-hero-actions button:nth-child(2){border-color:rgba(85,182,237,.35)}.home-hero-actions button:nth-child(3){border-color:rgba(242,90,112,.4)}.home-hero-actions button:nth-child(4){border-color:rgba(243,189,93,.35)}
+.supplements-card{margin-top:15px;padding-top:12px;border-top:1px solid var(--line)}
+.supplements-card h3{margin:0 0 9px;font-size:1rem}.supplements-card.attention{outline:2px solid #f3bd5d;outline-offset:5px;border-radius:8px}
+#supplements-today{display:flex;flex-wrap:wrap;gap:7px;margin:5px 0 10px}
+.supplement-chip{width:auto;min-height:40px;padding:8px 12px;border:1px solid var(--line);border-radius:999px;background:var(--panel-2);color:var(--text);font-weight:700}
+.supplement-chip[aria-pressed="true"]{border-color:#5bcf8b;background:rgba(74,178,104,.18);color:#a4edbb}
+#supplement-manage{margin-top:8px}#supplement-manage>summary{cursor:pointer;font-size:.87rem;font-weight:700;color:var(--text)}
+.supplement-manage-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 0;border-bottom:1px solid var(--line)}
+.supplement-manage-row .secondary-btn{width:auto;min-width:76px;margin:0}
+@media(max-width:380px){.home-hero-actions button strong{font-size:.68rem}.home-hero-panel h2{font-size:1.45rem}.home-hero-ring::before{width:70px;height:70px}.home-hero-ring::after{top:6px;width:58px;height:58px}.home-hero-ring strong{top:24px;font-size:.9rem}}
+/* Um único lançamento de refeição, com os métodos e a revisão na mesma janela. */
+#diet-add-card[hidden],#diet-add-backdrop[hidden]{display:none!important}
+.diet-entry-backdrop{position:fixed;inset:0;z-index:1199;background:rgba(0,0,0,.75)}
+#diet-add-card.diet-entry-panel{position:fixed;z-index:1200;left:50%;bottom:0;transform:translateX(-50%);width:min(100%,680px);max-height:94dvh;overflow-y:auto;overscroll-behavior:contain;margin:0;padding:16px 18px max(20px,env(safe-area-inset-bottom));border-radius:20px 20px 0 0;background:#171a20;box-shadow:0 -14px 38px rgba(0,0,0,.4)}
+body[data-theme="light"] #diet-add-card.diet-entry-panel{background:#f5f6f8}
+#diet-add-card input[type="checkbox"]{display:inline-block;width:18px!important;height:18px;min-height:18px;flex:0 0 18px;margin:0 8px 0 0;vertical-align:middle}
+#diet-add-card label:has(>input[type="checkbox"]){display:flex;align-items:center;gap:4px}
+.diet-entry-open{overflow:hidden}
+.diet-entry-head{position:sticky;top:-16px;z-index:2;display:flex;align-items:center;justify-content:space-between;gap:12px;margin:-16px -18px 10px;padding:16px 18px;background:#171a20;border-bottom:1px solid var(--line)}
+body[data-theme="light"] .diet-entry-head{background:#f5f6f8}
+.diet-entry-head h2{margin:0}.diet-entry-head .secondary-btn{width:auto;min-width:82px;flex:0 0 auto}
+.diet-quick-meals{display:block}.diet-entry-trigger{width:100%;min-height:50px}
+#diet-add-card .diet-method-choices{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+#diet-add-card .diet-method-choices button{min-height:48px;padding:9px}
+#diet-add-card details[hidden],#diet-add-card #diet-add-panel[hidden]{display:none!important}
+#diet-add-card :is(#quick-entry,#barcode-panel,#diet-photo-method,#diet-table-panel)>summary{display:none}
+#diet-add-card #diet-add-panel>summary{display:none}
+#diet-add-card :is(#quick-entry,#barcode-panel,#diet-photo-method,#diet-table-panel){margin-top:4px}
+#diet-add-card.diet-custom-active #diet-add-panel>:not(#diet-custom-panel):not(summary),
+#diet-add-card.diet-custom-active #diet-bulk-panel,
+#diet-add-card.diet-custom-active #diet-table-panel>.calc-formula-note{display:none!important}
+#diet-add-card :is(#diet-table-panel,#diet-add-panel){border:0;background:transparent;box-shadow:none;padding:0;margin:0}
+#diet-add-card.diet-custom-active #diet-custom-panel>summary{display:none}
+#diet-add-card .routine-panel:not([open]){display:none}
+#diet-add-card #diet-plan-panel,#diet-add-card #diet-recipes-panel{display:block}
+#diet-add-card #diet-simple-save{position:sticky;bottom:0;width:100%;z-index:1}
+/* Estados e medidas consistentes nas ações de alimentação. */
+#training-main #diet-add-card .diet-method-choices button.active,
+#training-main #diet-add-card .diet-method-choices button[aria-pressed="true"],
+#training-main #diet-add-card .meal-type-btn.active{border-color:#ff6178;background:rgba(255,32,65,.18);color:var(--text)}
+#training-main #diet-add-card :is(button.secondary-btn,button.dica-add-btn,button.primary,.photo-btn){box-sizing:border-box;min-height:48px;margin:6px 0 0;border-radius:10px}
+#training-main #diet-add-card :is(button.secondary-btn,button.dica-add-btn){width:100%}
+#training-main #diet-add-card .diet-entry-head .secondary-btn{width:auto;margin:0}

@@ -2,7 +2,7 @@
  'use strict';
  const KEY='dashboard-layout-v1',INDICATORS='indicadores';
  const STATS=['sequencia','agua-sequencia','agua','peso','treinos','saldo','gasto-ativo','ingestao','repouso','passos','gasto-total','dieta-dias'];
- const SECTIONS=['biblia','creatina','suplementos','custom-week-cards','meta-semanal','atalhos','pendencias','resumo-semanal','comparacao-semanal','atualizar'];
+ const SECTIONS=['biblia','creatina','custom-week-cards','meta-semanal','atalhos','pendencias','resumo-semanal','comparacao-semanal','atualizar'];
  const BLOCKS=[INDICATORS,...SECTIONS],CARDS=[...STATS,...SECTIONS],ESSENTIAL=['atualizar'];
  const LABELS={indicadores:'Indicadores pequenos',sequencia:'Sequência de hábitos','agua-sequencia':'Sequência de água',agua:'Água hoje',peso:'Peso',treinos:'Treinos no mês',saldo:'Saldo calórico','gasto-ativo':'Gasto em exercício',ingestao:'Ingestão hoje',repouso:'Calorias de repouso',passos:'Passos','gasto-total':'Gasto total','dieta-dias':'Dias com dieta concluída',biblia:'Leitura da Bíblia',creatina:'Creatina',suplementos:'Suplementos','custom-week-cards':'Meus cartões semanais','meta-semanal':'Meta semanal',atalhos:'Registro rápido',pendencias:'O que falta hoje','resumo-semanal':'Balanço calórico semanal','comparacao-semanal':'Comparação semanal',atualizar:'Botão Atualizar'};
  function normalize(value={}){

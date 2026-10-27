@@ -1,18 +1,37 @@
 (function(root,factory){const api=factory(root);if(typeof module==='object'&&module.exports)module.exports=api;root.ForjaDietQuick=api;})(typeof globalThis!=='undefined'?globalThis:this,function(root){
  'use strict';
- const meals=[['cafe','☀️ Café'],['almoco','🍽 Almoço'],['janta','🌙 Janta'],['ceia','🌘 Ceia'],['lanche','🍪 Lanche'],['livre','📝 Livre']];
- const methods=[['text','✎ Colar texto'],['barcode','▥ Código de barras'],['photo','📷 Foto'],['food','⌕ Buscar alimento'],['custom','🏷️ Novo produto']];
  const el=id=>root.document?.getElementById(id);
- let activeMeal=null,bound=false;
- const storage=()=>root.ForjaStorage||root.storage;
- function mealOptions(){return meals.filter(([key])=>!!root.document?.querySelector(`#diet-meal-type-grid .meal-type-btn[onclick*="'${key}'"]`));}
- async function recents(){try{const row=await storage()?.get('diet-recent-foods'),list=row?.value?JSON.parse(row.value):[];return Array.isArray(list)?list.filter(item=>item&&item.food&&Number(item.quantity)>0).slice(0,12):[];}catch{return [];}}
- function close(){const sheet=el('diet-quick-sheet');if(sheet){sheet.hidden=true;root.document.body.classList.remove('diet-quick-open');}activeMeal=null;}
- function open(meal){if(!meals.some(([key])=>key===meal))return;activeMeal=meal;const sheet=el('diet-quick-sheet');if(!sheet)return;sheet.hidden=false;root.document.body.classList.add('diet-quick-open');el('diet-quick-title').textContent='Adicionar · '+meals.find(([key])=>key===meal)[1];renderRecents();sheet.querySelector('.diet-quick-methods button')?.focus();}
- function goToForm(method){if(!activeMeal)return;root.selectDietMealType?.(activeMeal);root.ForjaDietFlow?.showMethod?.(method);close();const card=el('diet-add-card');card?.scrollIntoView?.({behavior:'smooth',block:'start'});}
- async function addRecent(index){const list=await recents(),item=list[index];if(!item||!activeMeal)return;root.selectDietMealType?.(activeMeal);root.ForjaDietFlow?.appendRows?.([{name:item.name,food:item.food,quantity:Number(item.quantity),unit:item.unit||item.food.unit||'g'}]);close();el('diet-add-card')?.scrollIntoView?.({behavior:'smooth',block:'start'});}
- async function renderRecents(){const box=el('diet-quick-recents');if(!box)return;const list=await recents();box.replaceChildren();if(!list.length){const p=root.document.createElement('p');p.className='calc-formula-note';p.textContent='Os alimentos que você salvar aparecerão aqui para repetir com um toque.';box.append(p);return;}list.forEach((item,index)=>{const button=root.document.createElement('button');button.type='button';button.className='diet-recent-button';button.textContent=`${item.name} · ${item.quantity} ${item.unit||'g'} · ${Math.round((Number(item.food.kcal)||0)*Number(item.quantity)/100)} kcal`;button.onclick=()=>addRecent(index);box.append(button);});}
- function render(){const box=el('diet-quick-meals');if(!box)return;box.replaceChildren();for(const [key,label] of mealOptions()){const button=root.document.createElement('button');button.type='button';button.className='diet-quick-meal';button.textContent=label+'  +';button.onclick=()=>open(key);box.append(button);}if(!box.children.length)for(const [key,label] of meals){const button=root.document.createElement('button');button.type='button';button.className='diet-quick-meal';button.textContent=label+'  +';button.onclick=()=>open(key);box.append(button);}}
- function init(){if(bound)return;const sheet=el('diet-quick-sheet'),methodsBox=el('diet-quick-methods');if(!sheet||!methodsBox)return;bound=true;for(const [key,label] of methods){const button=root.document.createElement('button');button.type='button';button.className='secondary-btn';button.textContent=label;button.onclick=()=>goToForm(key);methodsBox.append(button);}sheet.querySelectorAll('[data-diet-quick-close]').forEach(item=>item.addEventListener('click',close));root.document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!sheet.hidden)close();});render();}
- return{meals,methods,recents,open,close,render,renderRecents,addRecent,init};
+ let bound=false,previousFocus=null;
+ function close(){
+  const panel=el('diet-add-card'),backdrop=el('diet-add-backdrop');
+  if(!panel)return;
+  panel.hidden=true;if(backdrop)backdrop.hidden=true;
+  root.document.body.classList.remove('diet-entry-open');
+  const focusTarget=previousFocus?.isConnected===false?el('diet-quick-meals')?.querySelector('button'):previousFocus;
+  focusTarget?.focus?.();previousFocus=null;
+ }
+ function open(){
+  const panel=el('diet-add-card'),backdrop=el('diet-add-backdrop');
+  if(!panel)return;
+  previousFocus=root.document.activeElement;
+  panel.hidden=false;if(backdrop)backdrop.hidden=false;
+  root.document.body.classList.add('diet-entry-open');
+  el('diet-entry-close')?.focus?.();
+ }
+ function render(){
+  const box=el('diet-quick-meals');if(!box)return;
+  box.replaceChildren();
+  const button=root.document.createElement('button');
+  button.type='button';button.className='primary diet-entry-trigger';
+  button.textContent='＋ Adicionar refeição';button.onclick=open;box.append(button);
+ }
+ function init(){
+  if(bound||!el('diet-add-card'))return;
+  bound=true;
+  el('diet-entry-close')?.addEventListener('click',close);
+  el('diet-add-backdrop')?.addEventListener('click',close);
+  root.document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!el('diet-add-card').hidden)close();});
+  render();
+ }
+ return{open,close,render,init};
 });

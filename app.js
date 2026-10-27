@@ -650,7 +650,7 @@ async function adjustWaterGoal(delta){
   syncWaterGoalUI();
   await storageSet(K_WATER_GOAL, String(waterDailyGoal));
   await renderWaterBottleViews();
-  window.ForjaHomeHero?.render?.();
+  window.ForjaHomeHero?.updateWaterGoal?.(waterDailyGoal);
   await renderCharts();
 }
 async function setWaterGoalFromInput(){
@@ -660,6 +660,7 @@ async function setWaterGoalFromInput(){
   waterDailyGoal = n;
   await storageSet(K_WATER_GOAL, String(waterDailyGoal));
   await renderWaterBottleViews();
+  window.ForjaHomeHero?.updateWaterGoal?.(waterDailyGoal);
   await renderCharts();
 }
 
@@ -1079,7 +1080,7 @@ const K_CALC_LOCK = 'calorie-calc-lock';
 let calcLocked = false;
 
 // Trava os campos pra não mudarem mais sozinhos (ex: peso deixa de puxar o
-// último registrado) nem por toque acidental — pedido do Amaury pra fixar
+// último registrado) nem por toque acidental — pedido do usuário pra fixar
 // os dados depois de preencher tudo do jeito que quer.
 async function loadCalcLock(){
   try{
@@ -2069,7 +2070,7 @@ function clearDietFilePreview(previewElId){
   if(el) el.innerHTML = '';
 }
 // Botão explícito pra descartar a foto/rótulo carregado a qualquer momento —
-// pedido do Amaury, já que antes só dava pra "substituir" escolhendo outro
+// pedido do usuário, já que antes só dava pra "substituir" escolhendo outro
 // arquivo, sem um jeito de simplesmente remover o que já tinha enviado.
 function clearDietFile(kind){
   tapFeedback();
@@ -2627,7 +2628,7 @@ let DIET_PLAN = {
 // Transcrição literal da "Lista de compras" do PDF (página 9) — categorizada
 // pra caber no mesmo componente de checklist já existente (o documento original
 // é uma tabela solta, sem categoria). Todo item agora tem `qty` (a pedido do
-// Amaury em 2026-09-17, "quero que todos possuam uma forma de peso pra me
+// usuário em 2026-09-17, "quero que todos possuam uma forma de peso pra me
 // basear") — 3 níveis, sempre deixados explícitos no próprio texto:
 // 1) "/semana" — item do plano ativo, quantidade calculada (ver "ESTIMATIVA
 //    DE COMPRA SEMANAL" abaixo).
@@ -2722,11 +2723,11 @@ let SHOPPING_LIST = [
 // ---------- ESTIMATIVA DE COMPRA SEMANAL (premissas usadas acima) ----------
 // Café/Pós-treino/Almoço/Ceia: todo dia (x7). Lanche (4 opções): rotação
 // uniforme (Opção1 x2, Opção2 x2, Opção3 x2, Opção4 x1). Janta: SEM a Opção 3
-// (pizza de pão sírio, tirada a pedido do Amaury em 2026-09-17) — só Opção1
+// (pizza de pão sírio, tirada a pedido do usuário em 2026-09-17) — só Opção1
 // (x4) e Opção2 (x3). A proteína do Almoço/Janta Opção1 (11 ocorrências —
 // "Peito de frango grelhado" no documento) foi diversificada entre as 5
 // opções de substituição já autorizadas pelo nutricionista pro mesmo item,
-// a pedido do Amaury, em vez de assumir 100% peito de frango toda vez.
+// a pedido do usuário, em vez de assumir 100% peito de frango toda vez.
 // Conversão cru↔cozido de arroz e frango é regra de dedo (arroz rende ~3x
 // cozido; grelhar reduz o peso da carne em ~25-30%) — aproximação, não vem
 // do documento do nutricionista.
@@ -2746,7 +2747,7 @@ async function persistShopCheckedCache(){
 }
 // Reseta o estado de "comprado" (checkbox marcado) semanalmente, sempre que a
 // aba Cardápio é aberta numa semana nova (segunda-feira como início, mesmo
-// corte já usado na Meta semanal de treino) — pedido do Amaury em 2026-09-17.
+// corte já usado na Meta semanal de treino) — pedido do usuário em 2026-09-17.
 // Só o que foi marcado como comprado desmarca; itens removidos/adicionados
 // por ele continuam do jeito que estavam. Sem processo em segundo plano (é
 // só um app local), então o reset acontece na próxima vez que a aba abrir
@@ -2774,7 +2775,7 @@ async function toggleShopItem(key){
 }
 
 // ---------- LISTA DE COMPRAS PERSONALIZADA (remover item da lista base /
-// adicionar item novo) — pedido do Amaury em 2026-09-17. Itens da lista base
+// adicionar item novo) — pedido do usuário em 2026-09-17. Itens da lista base
 // (SHOPPING_LIST, transcrita do plano) nunca são apagados de verdade do
 // código — "remover" só marca a chave como escondida (`shopRemovedCache`),
 // reversível se algum dia precisar reverter. Itens adicionados pelo usuário
@@ -2969,7 +2970,7 @@ let corridaStatusUnsub = null;
 const ORIGEM_BADGE = {print:'📷', push_garmin:'⚡', strava:'🔄', manual:'✍️', 'push_garmin+print':'⚡📷', 'push_garmin+manual':'⚡✍️'};
 
 // ---------- EDITAR/EXCLUIR (Corrida/Natação/CrossFit) ----------
-// Pedido do Amaury (2026-09-15): poder editar ou excluir qualquer treino já salvo, nas
+// Pedido do usuário (2026-09-15): poder editar ou excluir qualquer treino já salvo, nas
 // 3 abas. Em vez de gesto de "segurar" (mais frágil entre mouse/toque, e nada no resto
 // do app usa isso), reaproveita o clique-pra-expandir que já existe: o detalhe expandido
 // ganha os botões. Excluir pede confirmação inline (sem `confirm()` nativo — não dá pra
@@ -3960,7 +3961,7 @@ async function handleCrossfitPrintFile(e){
     });
     const dataUrl = await preprocessImageForOcr(rawDataUrl);
     // Sem timeout, um travamento (ex.: o motor via importScripts também bloqueado) fica
-    // preso em "Lendo..." pra sempre (confirmado em uso real por Amaury, 2026-09-15).
+    // preso em "Lendo..." pra sempre (confirmado em uso real por usuário, 2026-09-15).
     const ocrTimeout = new Promise((_,reject)=>setTimeout(()=>reject(Object.assign(new Error('ocr_timeout'),{code:'ocr_timeout'})), 25000));
     const workerPath = await buildOcrWorkerUrl();
     const result = await Promise.race([Tesseract.recognize(dataUrl, 'por', {workerPath, corePath:'core'}), ocrTimeout]);
@@ -4295,6 +4296,15 @@ async function renderDashboard(){
   if(window.ForjaEnhancements) await window.ForjaEnhancements.renderWeeklyBalance();
   await window.ForjaWeeklyReport?.render?.();
   await window.ForjaDashboardLayout?.apply?.();
+  window.ForjaHomeHero?.render?.({
+    trained:sportDays.has(todayKey()),
+    waterMl:bodyArr.filter(row=>row.type==='water'&&row.date===todayKey()).reduce((sum,row)=>sum+waterMl(row),0),
+    waterGoal:waterDailyGoal,
+    eaten:comido,
+    foodGoal:goal,
+    balance:(garminTotal>0||goal>0)?balance:null,
+    balanceSource:garminTotal>0?'garmin':'meta'
+  });
   window.ForjaReminders?.refresh?.();
 }
 

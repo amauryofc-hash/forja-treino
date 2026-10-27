@@ -2,7 +2,7 @@
  'use strict';
  const STEPS={
   inicio:[['#home-hero','Resumo do dia','Veja água, passos e saldo e abra os registros mais usados.'],['#bible-reader-card','Leitura diária','Escolha livro e capítulo. Você pode ajustar a data quando registrar uma leitura feita antes.'],['#home-small-indicators','Indicadores','Os cartões pequenos mostram números do dia; configure a visibilidade em Mais.']],
-  dieta:[['#diet-summary-card','Resumo da Dieta','Escolha o tipo de refeição aqui e abra um lançamento curto.'],['#diet-quick-meals','Adicionar refeição','Você pode usar foto, texto, código ou um alimento recente. Tudo entra no mesmo rascunho.'],['#diet-add-card','Revisar e salvar','Confira quantidades e nutrientes antes de concluir o lançamento.']],
+  dieta:[['#diet-summary-card','Resumo da Dieta','Confira o dia e toque em Adicionar refeição.'],['#diet-quick-meals','Adicionar refeição','Escolha o tipo e use texto, código, foto ou busca na mesma janela. Confira os itens e salve.']],
   academia:[['#gym-start-panel','Começar o treino','Use uma ficha salva, um modelo editável ou comece sem ficha.'],['#gym-exercise-details','Biblioteca','Veja a execução do exercício antes de incluí-lo no treino.'],['#gym-history','Histórico','Consulte séries e cargas registradas anteriormente.']],
   biblioteca:[['#library-search','Buscar exercícios','Filtre por nome, músculo e equipamento.'],['#library-results','Ver antes de usar','Abra a demonstração e confira sua última carga registrada.']],
   relatorios:[['#gym-report-summary','Sua evolução','Veja treinos, volume e duração da semana.'],['#gym-report-records','Recordes estimados','Os valores são aproximações calculadas pelas séries concluídas.']],
