@@ -2382,16 +2382,13 @@ function computeTdee(){
     : (calcState.sex==='M' ? 10*calcState.weight+6.25*calcState.height-5*calcState.age+5 : 10*calcState.weight+6.25*calcState.height-5*calcState.age-161);
   return Math.round(bmr * (ACTIVITY_LEVELS.find(a=>a.key===calcState.activity)||ACTIVITY_LEVELS[2]).mult);
 }
-// Meta oficial prescrita pelo nutricionista (2026-09-17) — passa a ser a
-// meta usada de verdade pro acompanhamento diário (Dieta, streak, saldo do
-// Início), substituindo o TDEE×0,8 calculado como fonte principal. A
-// calculadora de calorias da aba Corpo (TMB/TDEE) continua disponível como
-// referência própria, só não alimenta mais a meta usada aqui.
-let NUTRITION_GOAL = {kcal: 2060, protein_g: 127.5, fat_g: 50, carbs_g: 275.4};
+// Configure sua meta alimentar em Mais antes de acompanhar o saldo.
+let NUTRITION_GOAL = {kcal: 2000, protein_g: 0, fat_g: 0, carbs_g: 0};
 async function loadNutritionGoal(){
   try {
     const saved=await window.storage.get('nutrition-goal-v1');
     if(saved){const value=JSON.parse(saved.value);if(Number.isFinite(value.kcal)&&value.kcal>0)NUTRITION_GOAL=value;}
+    else await window.storage.set('nutrition-goal-v1',JSON.stringify(NUTRITION_GOAL));
   } catch {}
   for(const [field,key] of [['kcal','kcal'],['protein','protein_g'],['fat','fat_g'],['carbs','carbs_g']]){
     const input=document.getElementById('nutrition-goal-'+field);if(input)input.value=NUTRITION_GOAL[key]||'';

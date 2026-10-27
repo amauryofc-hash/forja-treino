@@ -40,6 +40,7 @@
   function dateLabel(value){if(!value)return 'Sem posição importada';const d=new Date(value);return Number.isNaN(d.getTime())?'Data não informada':`Posição base: ${new Intl.DateTimeFormat('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric'}).format(d)}`;}
   async function persist(){state=core.recordSnapshot(state,today());await root.storage.set(KEY,JSON.stringify(state));render();}
   async function load(){
+    await root.ForjaAppVariant?.resolve();
     try{const record=await root.storage.get(KEY);if(record?.value){
       state=core.validate(JSON.parse(record.value));
       if(document.body.dataset.forjaVariant!=='shared'){
