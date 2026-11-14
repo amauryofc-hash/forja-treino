@@ -1,0 +1,35 @@
+name: Atualização do Forja
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'bundles/**'
+      - 'ota-manifest.json'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: forja-ota
+  cancel-in-progress: false
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Conferir e montar atualização
+        run: python .github/scripts/build-ota.py
+      - name: Publicar arquivo e versão
+        run: |
+          git config user.name 'Forja Atualizações'
+          git config user.email 'amauryofc-hash@users.noreply.github.com'
+          git add ota-manifest.json bundles/*.zip
+          git diff --cached --check
+          git commit -m 'Publica pacote automático do Forja'
+          git push origin HEAD:main

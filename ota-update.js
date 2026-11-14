@@ -1,7 +1,7 @@
 (function(root,factory){const api=factory(root);if(typeof module==='object'&&module.exports)module.exports=api;root.ForjaOtaUpdate=api;})(typeof globalThis!=='undefined'?globalThis:this,function(root){
  'use strict';
- const MANIFEST='https://amauryofc-hash.github.io/forja-treino/ota-manifest.json';
- const PREFIX='https://amauryofc-hash.github.io/forja-treino/bundles/';
+ const MANIFEST='https://raw.githubusercontent.com/amauryofc-hash/forja-treino/main/ota-manifest.json';
+ const PREFIXES=['https://raw.githubusercontent.com/amauryofc-hash/forja-treino/main/bundles/','https://amauryofc-hash.github.io/forja-treino/bundles/'];
  const version=/^\d+\.\d+\.\d+$/;
  const hash=/^[a-f0-9]{64}$/i;
  let pending=null,busy=false;
@@ -10,7 +10,7 @@
  function validate(value){
   if(!value||value.variant!=='personal'||!version.test(value.version)||!version.test(value.minNative)||!hash.test(value.checksum||''))throw Error('Pacote pessoal de atualização inválido.');
   const url=new URL(value.url);
-  if(url.protocol!=='https:'||!url.href.startsWith(PREFIX)||!url.pathname.endsWith('.zip')||url.username||url.password||url.search||url.hash)throw Error('Origem do pacote não autorizada.');
+  if(url.protocol!=='https:'||!PREFIXES.some(prefix=>url.href.startsWith(prefix))||!url.pathname.endsWith('.zip')||url.username||url.password||url.search||url.hash)throw Error('Origem do pacote não autorizada.');
   return {version:value.version,minNative:value.minNative,checksum:value.checksum.toLowerCase(),url:url.href,variant:'personal'};
  }
  function status(message){const area=root.document?.getElementById('ota-update-status');if(area)area.textContent=message;}
