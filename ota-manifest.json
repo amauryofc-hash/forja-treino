@@ -1,7 +1,7 @@
 {
   "variant": "personal",
-  "version": "2.6.12",
+  "version": "2.6.13",
   "minNative": "2.6.9",
-  "checksum": "b4b93b05aff5a508ab89e4301faa4a8a200c7386b59fb7d39387028e6528e0fe",
-  "url": "https://amauryofc-hash.github.io/forja-treino/bundles/2.6.12.zip"
+  "checksum": "8c5054b45b39db750b888a091c7f11c8871bf384495d8714c36323536cddf1cf",
+  "url": "https://raw.githubusercontent.com/amauryofc-hash/forja-treino/main/bundles/2.6.13.zip"
 }
