@@ -24,7 +24,7 @@
   const manifest=validate(await response.json());
   if(compare(native,manifest.minNative)<0){status('Esta atualização altera recursos do Android e precisa de um novo APK. Seus dados permanecem no aparelho.');return {nativeRequired:true};}
   const installed=version.test(bundle)?bundle:native;
-  if(compare(installed,manifest.version)>=0){pending=null;status('Conteúdo do aplicativo atualizado.');return {available:false};}
+  if(compare(installed,manifest.version)>=0){pending=null;status('Forja atualizado: versão '+installed+'.');return {available:false};}
   pending=manifest;status('Nova versão '+manifest.version+' disponível no GitHub. Toque em Atualizar aplicativo para instalar sem baixar um APK. Seus registros permanecem neste aparelho.');return {available:true,manifest};
  }
  async function apply(){

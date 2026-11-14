@@ -48,8 +48,13 @@ def build(output):
     version = f"{major}.{minor}.{patch + 1}"
     output.mkdir(parents=True, exist_ok=True)
     bundle = output / f"{version}.zip"
+    files = web_files()
+    html = files["index.html"].decode("utf-8")
+    if html.count('<script src="ota-update.js"></script>') != 1:
+        raise ValueError("Referência ao atualizador inesperada")
+    files["index.html"] = html.replace('<script src="ota-update.js"></script>', f'<script src="ota-update.js?v={version}"></script>').encode("utf-8")
     with zipfile.ZipFile(bundle, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6) as archive:
-        for name, data in sorted(web_files().items()):
+        for name, data in sorted(files.items()):
             archive.writestr(name, data)
     manifest = {
         "variant": "personal",
