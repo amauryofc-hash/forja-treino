@@ -108,9 +108,12 @@ async function flushWrite(key){
   delete pendingWrites[key];
   await storageSet(key, pending.valueFn());
 }
+window.ForjaFlushPendingWrites = async function(){
+  for(const key of Object.keys(pendingWrites)) await flushWrite(key);
+};
 
 // ---------- BACKUP EXPORT / IMPORT ----------
-const BACKUP_KEYS = ['body-log','progress-photos','measurements','diet-log','diet-closed-days','water-daily-goal','calorie-calc-lock','shopping-list-checked','shopping-list-removed','shopping-list-custom','visible-tabs-v1','creatine-days-v1','supplements-v1','supplement-checks-v1','training-goal','rest-day-weekly','local-reminders-v1','gym-plans-v1','gym-sessions-v1','gym-custom-exercises-v1','gym-active-workout-v1','weight-goal-v1'];
+const BACKUP_KEYS = ['body-log','progress-photos','measurements','diet-log','diet-closed-days','diet-untracked-days','water-daily-goal','garmin-water-daily-v1','garmin-water-source-v1','calorie-calc-lock','shopping-list-checked','shopping-list-removed','shopping-list-custom','visible-tabs-v1','creatine-days-v1','supplements-v1','supplement-checks-v1','training-goal','rest-day-weekly','local-reminders-v1','gym-plans-v1','gym-sessions-v1','gym-custom-exercises-v1','gym-active-workout-v1','weight-goal-v1'];
 async function buildBackupJson(){
   const data = {};
   for(const key of BACKUP_KEYS){
@@ -286,6 +289,7 @@ async function handleImportFile(e){
   const file = e.target.files[0];
   if(!file) return;
   try{
+    if(file.size>50*1024*1024)throw Error('A cópia é grande demais para importar no celular (limite de 50 MB).');
     const text = await file.text();
     prepareBackupRestore(text,file.name);
   }catch(err){
@@ -331,13 +335,12 @@ function selectAngle(btn){
   selectedAngle = btn.dataset.angle;
 }
 
-document.getElementById('progress-photo-file').addEventListener('change', function(e){
-  const file = e.target.files[0];
-  if(!file) return;
-  const reader = new FileReader();
-  reader.onload = function(ev){
-    const img = new Image();
-    img.onload = async function(){
+document.getElementById('progress-photo-file').addEventListener('change', async function(e){
+  const rawFile = e.target.files[0];
+  if(!rawFile) return;
+  try{
+      const file=await ForjaImageFiles.prepare(rawFile);
+      const img=await createImageBitmap(file);
       const canvas = document.createElement('canvas');
       const maxW = 640;
       const scale = Math.min(1, maxW / img.width);
@@ -345,6 +348,7 @@ document.getElementById('progress-photo-file').addEventListener('change', functi
       canvas.height = img.height * scale;
       const ctx = canvas.getContext('2d');
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      img.close();
       const dataUrl = canvas.toDataURL('image/jpeg', 0.72);
       await loadProgressCache();
       progressCache.unshift({id:cid(), date:todayKey(), time:nowTime(), angle:selectedAngle, photo:dataUrl});
@@ -352,10 +356,8 @@ document.getElementById('progress-photo-file').addEventListener('change', functi
       document.getElementById('progress-photo-file').value = '';
       showToast('Foto de progresso salva!');
       renderProgressGallery();
-    };
-    img.src = ev.target.result;
-  };
-  reader.readAsDataURL(file);
+  }catch(error){showToast(error.message||'Não foi possível abrir a foto.');}
+  finally{e.target.value='';}
 });
 
 async function renderProgressGallery(){
@@ -631,7 +633,7 @@ async function getLastWeightValue(){
 
 // ---------- WATER BOTTLE VISUAL ----------
 const K_WATER_GOAL = 'water-daily-goal';
-let waterDailyGoal = 2100; // default; editável na aba Água, persistido
+let waterDailyGoal = 2000; // default; editável na aba Água, persistido
 async function loadWaterGoal(){
   try{
     const r = await window.storage.get(K_WATER_GOAL);
@@ -708,8 +710,8 @@ async function renderWaterBottleViews(){
   const dateInput = document.getElementById('water-date-input');
   if(dateInput && dateInput.value !== selectedWaterDate) dateInput.value = selectedWaterDate;
 
-  const selWater = arr.filter(e=>e.type==='water' && e.date===selectedWaterDate);
-  const selTotal = Math.max(0, Math.round(selWater.reduce((sum,e)=> sum + waterMl(e), 0)));
+   const selTotal = window.ForjaGarminWater?.total?.(selectedWaterDate,arr) ?? Math.max(0, Math.round(arr.filter(e=>e.type==='water' && e.date===selectedWaterDate).reduce((sum,e)=> sum + waterMl(e), 0)));
+   window.ForjaGarminWater?.renderInfo?.(selectedWaterDate,arr);
   const mainEl = document.getElementById('water-bottle-main');
   if(mainEl){
     mainEl.innerHTML = buildWaterBottleSvg('main', selTotal, 120);
@@ -721,7 +723,7 @@ async function renderWaterBottleViews(){
   }
 
   const todayTotal = selectedWaterDate===todayKey() ? selTotal
-    : Math.max(0, Math.round(arr.filter(e=>e.type==='water' && e.date===todayKey()).reduce((sum,e)=> sum + waterMl(e), 0)));
+     : (window.ForjaGarminWater?.total?.(todayKey(),arr) ?? Math.max(0, Math.round(arr.filter(e=>e.type==='water' && e.date===todayKey()).reduce((sum,e)=> sum + waterMl(e), 0))));
   const dashEl = document.getElementById('water-bottle-dash');
   if(dashEl){
     dashEl.innerHTML = buildWaterBottleSvg('dash', todayTotal, 54);
@@ -907,6 +909,8 @@ function connectGoogleDrive(){
       showToast('Google Drive conectado!');
       await renderGDriveStatus();
       window.ForjaDriveBackup?.render?.();
+      window.ForjaDriveSync?.render?.();
+      window.ForjaDriveSync?.onConnected?.();
     }
   });
   gdriveTokenClient.requestAccessToken();
@@ -1080,7 +1084,6 @@ const K_CALC_LOCK = 'calorie-calc-lock';
 let calcLocked = false;
 
 // Trava os campos pra não mudarem mais sozinhos (ex: peso deixa de puxar o
-// último registrado) nem por toque acidental — pedido do usuário pra fixar
 // os dados depois de preencher tudo do jeito que quer.
 async function loadCalcLock(){
   try{
@@ -1238,10 +1241,17 @@ async function preprocessImageForOcr(dataUrl){
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
         const imgData = ctx.getImageData(0,0,canvas.width,canvas.height);
         const d = imgData.data;
+        let darkPixels=0;
         for(let i=0;i<d.length;i+=4){
           const gray = 0.299*d[i] + 0.587*d[i+1] + 0.114*d[i+2];
+          if(gray<100)darkPixels++;
           const contrasted = Math.min(255, Math.max(0, (gray-128)*1.5+128));
           d[i]=d[i+1]=d[i+2]=contrasted;
+        }
+        // Prints com texto claro em painel escuro (como mensagens de WOD)
+        // ficam mais legíveis para o OCR com letras escuras sobre fundo claro.
+        if(darkPixels>canvas.width*canvas.height*.5){
+          for(let i=0;i<d.length;i+=4)d[i]=d[i+1]=d[i+2]=255-d[i];
         }
         ctx.putImageData(imgData,0,0);
         resolve(canvas.toDataURL('image/png'));
@@ -1399,7 +1409,7 @@ async function renderCharts(){
   arr.filter(e=>e.type==='water').forEach(e=>{
     waterByDay[e.date] = (waterByDay[e.date]||0) + waterMl(e);
   });
-  const waterData = days14.map(d=>({label: shortDay(d), value: Math.round(waterByDay[d]||0)}));
+   const waterData = days14.map(d=>({label: shortDay(d), value: window.ForjaGarminWater?.total?.(d,arr) ?? Math.round(waterByDay[d]||0)}));
   svgBarChart('water-chart', waterData, {title:`Água por dia (últimos 14 dias) · meta ${waterDailyGoal}ml`, goalLine:waterDailyGoal, highlightLast:true});
 
   // weight: chronological entries (last per day), up to last 14 with data
@@ -1572,7 +1582,7 @@ function startReminderLoop(){
 async function checkReminders(){
   const arr = await loadBody();
   const today = arr.filter(e=>e.type==='water' && e.date===todayKey());
-  const total = today.reduce((sum,e)=> sum + waterMl(e), 0);
+   const total = window.ForjaGarminWater?.total?.(todayKey(),arr) ?? today.reduce((sum,e)=> sum + waterMl(e), 0);
   const missing = Math.round(waterDailyGoal - total);
   if(missing <= 0) return; // meta do dia já batida, nada a cobrar
 
@@ -1726,10 +1736,10 @@ async function computeDietDaySummary(dateStr){
 }
 
 // ---------- STREAK ----------
-function evaluateStreakDay({water,waterGoal,closed,summary,trained,rest,bibleRequired,bibleDone}){
+function evaluateStreakDay({water,waterGoal,closed,untracked,summary,trained,rest,bibleRequired,bibleDone}){
   const waterOk=water>=waterGoal;
   const balance=summary.garminTotal>0?summary.garminTotal-summary.comido:summary.goal-summary.comido;
-  const foodOk=!!closed&&summary.entryCount>0&&summary.comido>0&&(summary.garminTotal>0?balance>0:summary.goal>0&&balance>=0);
+  const foodOk=!untracked&&!!closed&&summary.entryCount>0&&summary.comido>0&&(summary.garminTotal>0?balance>0:summary.goal>0&&balance>=0);
   const trainingOk=!!trained||!!rest;
   const bibleOk=!bibleRequired||!!bibleDone;
   return {waterOk,foodOk,trainingOk,bibleOk,complete:waterOk&&foodOk&&trainingOk&&bibleOk,balance,balanceSource:summary.garminTotal>0?'gasto medido':'meta alimentar'};
@@ -1738,27 +1748,31 @@ async function getStreakDayStatus(key){
   const date=new Date(`${key}T12:00:00`);
   if(!/^\d{4}-\d{2}-\d{2}$/.test(key)||Number.isNaN(date.getTime())||todayKey(date)!==key)throw Error('Data inválida.');
   const week=todayKey(getMonday(date)),body=await loadBody();
-  const water=body.filter(e=>e.type==='water'&&e.date===key).reduce((sum,e)=>sum+waterMl(e),0);
+   const water=window.ForjaGarminWater?.total?.(key,body) ?? body.filter(e=>e.type==='water'&&e.date===key).reduce((sum,e)=>sum+waterMl(e),0);
   const sport=await loadCombinedSportDates();
   let closed={},restWeeks={};try{const r=await window.storage.get('diet-closed-days');closed=r?JSON.parse(r.value):{};}catch{}
+  let untracked={};try{const r=await window.storage.get('diet-untracked-days');untracked=r?JSON.parse(r.value):{};}catch{}
   try{const r=await window.storage.get('rest-day-weekly');restWeeks=r?JSON.parse(r.value):{};}catch{}
   const restDay=Number(restWeeks[week]??0),summary=await computeDietDaySummary(key),bibleState=await window.ForjaBibleReader?.load?.();
   const bibleRequired=!!bibleState?.activatedOn&&key>=bibleState.activatedOn;
   const bibleDone=!bibleRequired||window.ForjaBibleReader.qualifies(bibleState,key);
-  return {...evaluateStreakDay({water,waterGoal:waterDailyGoal,closed:closed[key],summary,trained:sport.has(key),rest:date.getDay()===restDay,bibleRequired,bibleDone}),water,waterGoal:waterDailyGoal,closed:!!closed[key],meals:summary.entryCount,consumed:summary.comido,totalBurn:summary.garminTotal,foodGoal:summary.goal,trained:sport.has(key),restPlanned:date.getDay()===restDay,bibleRequired,bibleDone};
+  return {...evaluateStreakDay({water,waterGoal:waterDailyGoal,closed:closed[key],untracked:!!untracked[key],summary,trained:sport.has(key),rest:date.getDay()===restDay,bibleRequired,bibleDone}),water,waterGoal:waterDailyGoal,closed:!!closed[key],untracked:!!untracked[key],meals:summary.entryCount,consumed:summary.comido,totalBurn:summary.garminTotal,foodGoal:summary.goal,trained:sport.has(key),restPlanned:date.getDay()===restDay,bibleRequired,bibleDone};
 }
 window.getStreakDayStatus=getStreakDayStatus;
 async function computeStreak(){
   const sportDays=await loadCombinedSportDates(),body=await loadBody();
   const bibleState=await window.ForjaBibleReader?.load?.();
-  const water={};for(const row of body.filter(e=>e.type==='water'))water[row.date]=(water[row.date]||0)+waterMl(row);
-  let closed={},restWeeks={};
+   const water={};for(const row of body.filter(e=>e.type==='water'))water[row.date]=(water[row.date]||0)+waterMl(row);
+   for(const key of Object.keys(water))water[key]=window.ForjaGarminWater?.total?.(key,body) ?? water[key];
+   for(const row of window.ForjaGarminWater?.days?.()||[])water[row.date]=window.ForjaGarminWater.total(row.date,body);
+  let closed={},untracked={},restWeeks={};
   try{const r=await window.storage.get('diet-closed-days');closed=r?JSON.parse(r.value):{};}catch{}
+  try{const r=await window.storage.get('diet-untracked-days');untracked=r?JSON.parse(r.value):{};}catch{}
   try{const r=await window.storage.get('rest-day-weekly');restWeeks=r?JSON.parse(r.value):{};}catch{}
   async function qualifies(date){
     const key=todayKey(date),week=todayKey(getMonday(date));
     const rest=Number.isInteger(Number(restWeeks[week]))&&restWeeks[week]!=null?Number(restWeeks[week]):0;
-    if(!closed[key]||water[key]<waterDailyGoal||(!sportDays.has(key)&&date.getDay()!==rest)||bibleState&&!window.ForjaBibleReader.qualifies(bibleState,key))return false;
+    if(untracked[key]||!closed[key]||water[key]<waterDailyGoal||(!sportDays.has(key)&&date.getDay()!==rest)||bibleState&&!window.ForjaBibleReader.qualifies(bibleState,key))return false;
     const summary=await computeDietDaySummary(key);
     if(summary.entryCount===0||summary.comido<=0)return false;
     return summary.garminTotal>0?summary.comido<summary.garminTotal:summary.goal>0&&summary.comido<=summary.goal;
@@ -1778,13 +1792,14 @@ async function computeStreak(){
 }
 async function streakCriteriaToday(){
   const date=new Date(),key=todayKey(date),week=todayKey(getMonday(date));
-  const body=await loadBody(),water=body.filter(e=>e.type==='water'&&e.date===key).reduce((sum,e)=>sum+waterMl(e),0);
+   const body=await loadBody(),water=window.ForjaGarminWater?.total?.(key,body) ?? body.filter(e=>e.type==='water'&&e.date===key).reduce((sum,e)=>sum+waterMl(e),0);
   const sport=await loadCombinedSportDates();
-  let closed={},restWeeks={};try{const r=await window.storage.get('diet-closed-days');closed=r?JSON.parse(r.value):{};}catch{}
+  let closed={},untracked={},restWeeks={};try{const r=await window.storage.get('diet-closed-days');closed=r?JSON.parse(r.value):{};}catch{}
+  try{const r=await window.storage.get('diet-untracked-days');untracked=r?JSON.parse(r.value):{};}catch{}
   try{const r=await window.storage.get('rest-day-weekly');restWeeks=r?JSON.parse(r.value):{};}catch{}
   const rest=Number(restWeeks[week]??0),summary=await computeDietDaySummary(key);
   const balance=summary.garminTotal>0?summary.garminTotal-summary.comido:summary.goal-summary.comido;
-  const waterOk=water>=waterDailyGoal,foodOk=!!closed[key]&&summary.entryCount>0&&summary.comido>0&&balance>0;
+  const waterOk=water>=waterDailyGoal,foodOk=!untracked[key]&&!!closed[key]&&summary.entryCount>0&&summary.comido>0&&balance>0;
   const trainingOk=sport.has(key),restOk=date.getDay()===rest;
   const bibleOk=await window.ForjaBibleReader?.readOn?.(key)??true;
   return {waterOk,foodOk,trainingOk,restOk,bibleOk,balanceSource:summary.garminTotal>0?'gasto medido':'meta alimentar'};
@@ -1798,6 +1813,8 @@ async function computeWaterStreak(){
   bodyArr.filter(e=>e.type==='water').forEach(e=>{
     waterByDate[e.date] = (waterByDate[e.date]||0) + waterMl(e);
   });
+   for(const key of Object.keys(waterByDate))waterByDate[key]=window.ForjaGarminWater?.total?.(key,bodyArr) ?? waterByDate[key];
+   for(const row of window.ForjaGarminWater?.days?.()||[])waterByDate[row.date]=window.ForjaGarminWater.total(row.date,bodyArr);
   const daySet = new Set(Object.keys(waterByDate).filter(d=>waterByDate[d] >= waterDailyGoal));
   if(daySet.size===0) return 0;
   let streak = 0;
@@ -1941,6 +1958,7 @@ function selectDietMealType(key){
   tapFeedback();
   dietSelectedMealType = key;
   renderMealTypeButtons();
+  window.ForjaDietQuick?.onMealSelected?.(key);
   // Se uma foto/rótulo já tinha sido carregado antes de escolher o tipo
   // (ver comentário em handleDietPhotoFile), a leitura retoma sozinha aqui,
   // sem precisar escolher o arquivo de novo.
@@ -2070,7 +2088,6 @@ function clearDietFilePreview(previewElId){
   if(el) el.innerHTML = '';
 }
 // Botão explícito pra descartar a foto/rótulo carregado a qualquer momento —
-// pedido do usuário, já que antes só dava pra "substituir" escolhendo outro
 // arquivo, sem um jeito de simplesmente remover o que já tinha enviado.
 function clearDietFile(kind){
   tapFeedback();
@@ -2215,12 +2232,23 @@ function dietOcrRawTextHtml(rawText){
   if(!rawText || !rawText.trim()) return '';
   return `<details style="margin-top:8px;"><summary class="calc-formula-note" style="cursor:pointer;">Ver texto reconhecido pelo OCR</summary><pre style="white-space:pre-wrap; font-size:11px; color:var(--muted); background:var(--panel-2); border-radius:8px; padding:8px; margin-top:6px;">${escapeHtml(rawText.trim())}</pre></details>`;
 }
+let ocrLibraryPromise;
+function ensureOcrLibrary(){
+  if(typeof Tesseract!=='undefined')return Promise.resolve(Tesseract);
+  if(!ocrLibraryPromise)ocrLibraryPromise=new Promise((resolve,reject)=>{
+    const script=document.createElement('script');script.src='tesseract.min.js';
+    script.onload=()=>typeof Tesseract!=='undefined'?resolve(Tesseract):reject(new Error('Biblioteca de leitura indisponível.'));
+    script.onerror=()=>reject(new Error('Não foi possível carregar a leitura de imagens.'));
+    document.head.append(script);
+  }).catch(error=>{ocrLibraryPromise=null;throw error;});
+  return ocrLibraryPromise;
+}
 async function runDietLabelEstimate(file){
   const statusEl = document.getElementById('diet-label-status');
   const resultEl = document.getElementById('diet-label-result');
   statusEl.innerHTML = '🔍 Lendo o rótulo... isso pode levar alguns segundos.';
   try{
-    if(typeof Tesseract === 'undefined') throw new Error('Tesseract não carregou');
+    const ocr=await ensureOcrLibrary();
     const rawDataUrl = await new Promise((resolve,reject)=>{
       const reader = new FileReader();
       reader.onload = ()=>resolve(reader.result);
@@ -2230,7 +2258,7 @@ async function runDietLabelEstimate(file){
     const dataUrl = await preprocessImageForOcr(rawDataUrl);
     const ocrTimeout = new Promise((_,reject)=>setTimeout(()=>reject(Object.assign(new Error('ocr_timeout'),{code:'ocr_timeout'})), 25000));
     const workerPath = await buildOcrWorkerUrl();
-    const result = await Promise.race([Tesseract.recognize(dataUrl, 'por', {workerPath, corePath:'core'}), ocrTimeout]);
+    const result = await Promise.race([ocr.recognize(dataUrl, 'por', {workerPath, corePath:'core'}), ocrTimeout]);
     const rawText = result.data.text || '';
     const parsed = parseNutritionLabel(rawText);
     const gotAny = parsed.kcal!==null || parsed.protein_g!==null || parsed.carbs_g!==null || parsed.fat_g!==null;
@@ -2382,8 +2410,12 @@ function computeTdee(){
     : (calcState.sex==='M' ? 10*calcState.weight+6.25*calcState.height-5*calcState.age+5 : 10*calcState.weight+6.25*calcState.height-5*calcState.age-161);
   return Math.round(bmr * (ACTIVITY_LEVELS.find(a=>a.key===calcState.activity)||ACTIVITY_LEVELS[2]).mult);
 }
-// Configure sua meta alimentar em Mais antes de acompanhar o saldo.
-let NUTRITION_GOAL = {kcal: 2000, protein_g: 0, fat_g: 0, carbs_g: 0};
+// Meta oficial prescrita pelo nutricionista (2026-09-17) — passa a ser a
+// meta usada de verdade pro acompanhamento diário (Dieta, streak, saldo do
+// Início), substituindo o TDEE×0,8 calculado como fonte principal. A
+// calculadora de calorias da aba Corpo (TMB/TDEE) continua disponível como
+// referência própria, só não alimenta mais a meta usada aqui.
+let NUTRITION_GOAL = {kcal: 0, protein_g: 0, fat_g: 0, carbs_g: 0};
 async function loadNutritionGoal(){
   try {
     const saved=await window.storage.get('nutrition-goal-v1');
@@ -2409,12 +2441,17 @@ function computeDeficitGoal(){
 }
 async function computeDeficitDays(){
   await loadDietCache();
-  const byDate = {};
-  dietCache.forEach(e=>{ byDate[e.date] = (byDate[e.date]||0) + (e.kcal||0); });
-  const goal = computeDeficitGoal();
-  if(goal<=0) return new Set();
-  let closed={};try{const r=await window.storage.get('diet-closed-days');closed=r?JSON.parse(r.value):{};}catch{}
-  return new Set(Object.keys(byDate).filter(d=>closed[d]));
+  let closed={},untracked={};
+  try{const r=await window.storage.get('diet-closed-days');closed=r?JSON.parse(r.value):{};}catch{}
+  try{const r=await window.storage.get('diet-untracked-days');untracked=r?JSON.parse(r.value):{};}catch{}
+  const result=new Set();
+  for(const date of Object.keys(closed)){
+    if(untracked[date])continue;
+    const summary=await computeDietDaySummary(date);
+    const balance=summary.garminTotal>0?summary.garminTotal-summary.comido:summary.goal-summary.comido;
+    if(summary.entryCount>0&&summary.comido>0&&balance>0)result.add(date);
+  }
+  return result;
 }
 async function computeDeficitStreak(){
   const deficitDays = await computeDeficitDays();
@@ -2450,6 +2487,23 @@ async function renderDietTab(){
 
   const dayEntries = dietCache.filter(e=>e.date===selectedDietDate);
   const totalKcal = dayEntries.reduce((s,e)=>s+(e.kcal||0),0);
+  const compactEl = document.getElementById('diet-compact-summary');
+  if(compactEl){
+    const goal=Math.max(0,Number(computeDeficitGoal())||0);
+    const macros=[
+      {label:'Proteína',key:'protein_g',goal:Math.round(Number(NUTRITION_GOAL.protein_g)||0)},
+      {label:'Carbo',key:'carbs_g',goal:Math.round(Number(NUTRITION_GOAL.carbs_g)||0)},
+      {label:'Gordura',key:'fat_g',goal:Math.round(Number(NUTRITION_GOAL.fat_g)||0)}
+    ];
+    const pct=goal?Math.min(100,Math.round(totalKcal/goal*100)):0;
+    const balance=goal?totalKcal>goal?`${Math.round(totalKcal-goal)} acima`:`faltam ${Math.round(goal-totalKcal).toLocaleString('pt-BR')}`:'sem meta';
+    compactEl.innerHTML=`<div class="diet-compact-ring" style="--diet-progress:${pct}%"><strong>${Math.round(totalKcal).toLocaleString('pt-BR')}</strong><small>${balance}</small></div><div class="diet-compact-macros">${macros.map(m=>{const value=Math.round(dayEntries.reduce((sum,e)=>sum+(Number(e[m.key])||0),0));const width=m.goal?Math.min(100,value/m.goal*100):0;return `<div class="diet-macro-line"><div><span>${m.label}</span><b>${value}/${m.goal} g</b></div><i role="progressbar" aria-label="${m.label}" aria-valuenow="${value}" aria-valuemin="0" aria-valuemax="${m.goal||1}"><em style="width:${width}%"></em></i></div>`}).join('')}</div><p class="diet-compact-goal">${goal?`Meta do dia: ${goal.toLocaleString('pt-BR')} kcal.`:'Defina uma meta alimentar em Mais, se quiser.'}</p>`;
+  }
+  const mealOverview=document.getElementById('diet-meal-overview');
+  if(mealOverview){
+    const order=['cafe','almoco','lanche','janta','ceia','livre'];
+    mealOverview.innerHTML=order.map(key=>{const type=MEAL_TYPES.find(t=>t.key===key),items=dayEntries.filter(e=>e.mealType===key),kcal=Math.round(items.reduce((sum,e)=>sum+(Number(e.kcal)||0),0));return `<section class="diet-meal-row" data-diet-meal="${key}"><div class="diet-meal-row-info"><strong>${type.emoji} ${type.label}</strong>${items.length?`<small>${items.length} ${items.length===1?'registro':'registros'} · ${kcal} kcal</small>`:''}</div><button type="button" class="diet-meal-add" onclick="ForjaDietQuick.openForMeal('${key}')" aria-label="Adicionar ${type.label}">+ Adicionar</button></section>`;}).join('');
+  }
 
   const ringsEl = document.getElementById('diet-rings');
   if(ringsEl){
@@ -2532,203 +2586,9 @@ async function renderDietTab(){
   await window.ForjaEnhancements?.renderDayClose(selectedDietDate);
 }
 
-// ---------- CARDÁPIO (plano alimentar prescrito) ----------
-// Substitui o cardápio fictício que existia aqui antes por transcrição literal
-// do plano real do nutricionista (Yuri De Souza Fernandes, prescrito 13/08/2026,
-// PDF preservado em 03-ESP-Ferramenta/Referencias-Dieta/). Nenhum valor calórico
-// é mostrado — o documento não traz kcal, só alimento+quantidade, então não
-// inventamos número que não está na fonte (diferente do cardápio antigo, que era
-// invenção própria e por isso podia estimar kcal à vontade).
-//
-// Café, Pós-treino, Almoço e Ceia são fixos (um único item por refeição, sem
-// variar por dia — o documento não varia por dia da semana). Lanche e Janta têm
-// "Opções" nomeadas pelo próprio documento (Opção 1/2/3/4 e 1/2/3) — o usuário
-// escolhe livremente qual seguir num dia, via botão "🔄 Trocar opção", persistido
-// (não por dia da semana, já que o documento não amarra opção a dia).
-const FRUIT_SUBS = ['Abacaxi — 140g','Acerola — 20 unidades (240g)','Banana — 1 unidade grande (55g)','Caju — 1 unidade média (140g)','Goiaba — 1 unidade média (130g)','Jaca — 80g','Kiwi — 2 unidades média(s) (152g)','Maçã — 1 unidade média (130g)','Mamão — 150g','Manga — 120g','Melancia — 200g','Melão — 200g','Laranja — 1 unidade média (180g)','Morango — 200g','Pera — 1 unidade média (110g)','Pêssego — 3 unidades média(s) (180g)','Tangerina Ponkã — 1 unidade média (135g)','Uva — 120g'];
-const FRUIT_SUBS_CEIA = ['Abacaxi — 140g','Acerola — 20 unidades (240g)','Ameixa — 3 unidades média(s) (126g)','Banana — 1 unidade grande (55g)','Caju — 1 unidade média (140g)','Goiaba — 1 unidade média (130g)','Jaca — 80g','Kiwi — 2 unidades média(s) (152g)','Maçã — 1 unidade média (130g)','Mamão — 150g','Manga — 120g','Melancia — 200g','Melão — 200g','Laranja — 1 unidade média (180g)','Morango — 200g','Pera — 1 unidade média (110g)','Pêssego — 3 unidades média(s) (180g)','Tangerina Ponkã — 1 unidade média (135g)','Uva — 120g'];
-const FRUIT_SUBS_PAO_QUEIJO = ['Abacaxi — 140g','Acerola — 20 unidades (240g)','Amora — 140g','Banana — 1 unidade grande (55g)','Caju — 1 unidade média (140g)','Framboesa — 150g','Goiaba — 1 unidade média (130g)','Jaca — 80g','Kiwi — 2 unidades média(s) (152g)','Maçã — 1 unidade média (130g)','Mamão — 150g','Manga — 120g','Melancia — 200g','Melão — 200g','Mirtilo — 120g','Laranja — 1 unidade média (180g)','Morango — 200g','Pera — 1 unidade média (110g)','Pêssego — 3 unidades média(s) (180g)','Pitaia — 180g','Tangerina Ponkã — 1 unidade média (135g)','Uva — 120g'];
-const ARROZ_SUBS = ['Abóbora cozida — 454,5g','Arroz integral cozido — 200g','Batata doce cozida — 236,5g','Batata inglesa cozida — 400g','Cuscuz de milho cozido — 227,3g','Feijão cozido — 200g','Grão de bico cozido — 200g','Macarrão cozido — 181,7g','Purê de batata inglesa — 363,5g'];
-const FRANGO_SUBS = ['Carne (alcatra, contrafilé, coxão mole, filé mignon, lagarto, patinho) cozida/grelhada/assada com sal — 120g','Coxa de frango assada — 120g','Lombo de porco assado — 120g','Filé de peixe grelhado/assado — 150g'];
-const PAO_FRANCES_SUBS = ['Goma de tapioca — 50g','Pão de forma — 2 fatias (50g)'];
-const QUEIJO_SUBS = ['Requeijão Light — 40g'];
-
-let DIET_PLAN = {
-  cafe: {label:'Café da manhã', icon:'☕', items:[
-    {name:'Pão francês', qty:'1 unidade (50g)', subs:PAO_FRANCES_SUBS},
-    {name:'Ovo de galinha', qty:'2 unidades média(s) (100g)', subs:[]},
-    {name:'Queijo mussarela', qty:'20g', subs:QUEIJO_SUBS},
-    {name:'Porção de fruta', qty:'1 porção (75g)', subs:FRUIT_SUBS},
-  ]},
-  posTreino: {label:'Pós primeiro treino', icon:'💪', items:[
-    {name:'Suco de uva concentrado', qty:'200ml', subs:['Suco de laranja — 250ml','Banana — 2 unidades média(s) (130g)','Goiaba — 220g']},
-    {name:'Repositor Eletrolítico', qty:'1 colher de medida (5g)', subs:[]},
-  ]},
-  almoco: {label:'Almoço', icon:'🍛', items:[
-    {name:'Arroz branco cozido', qty:'200g', subs:ARROZ_SUBS},
-    {name:'Peito de frango grelhado', qty:'120g', subs:FRANGO_SUBS},
-    {name:'Legumes e verduras', qty:'100g', subs:[]},
-  ]},
-  lanche: {label:'Lanche', icon:'🍪', options:[
-    {name:'Opção 1', items:[
-      {name:'Pão francês', qty:'1 unidade (50g)', subs:PAO_FRANCES_SUBS},
-      {name:'Frango desfiado', qty:'50g', subs:['Ovo de galinha — 1,3 unidade média (62,5g)','Carne moída — 50g','Atum sólido ao natural — 0,6 lata (106,3g)','Sardinha enlatada — 1,3 filé (43,8g)']},
-      {name:'Queijo mussarela', qty:'20g', subs:QUEIJO_SUBS},
-      {name:'Porção de fruta', qty:'1 porção (75g)', subs:FRUIT_SUBS},
-    ]},
-    {name:'Opção 2', items:[
-      {name:'Iogurte zero ou desnatado', qty:'150ml', subs:['Leite em pó integral — 20g','Leite em pó desnatado — 30g']},
-      {name:'Porção de fruta', qty:'2 porções (150g)', subs:FRUIT_SUBS},
-      {name:'Mel', qty:'20g', subs:['Doce de leite cremoso — 20g']},
-      {name:'Granola', qty:'15g', subs:[]},
-    ]},
-    {name:'Opção 3', items:[
-      {name:'Porção de fruta', qty:'2 porções (150g)', subs:FRUIT_SUBS},
-      {name:'Barrinha de Proteína 45g', qty:'1 unidade (55g)', subs:['YoPro — 1 unidade (250ml)']},
-    ], note:'Barra de proteína = duas de 45g ou uma de 90g'},
-    {name:'Opção 4 (Pão de queijo)', items:[
-      {name:'Ovo de galinha', qty:'1 unidade média (50g)', subs:[]},
-      {name:'Polvilho', qty:'50g', subs:['Goma de tapioca — 62,5g']},
-      {name:'Queijo muçarela', qty:'30g', subs:[]},
-      {name:'Fermento químico em pó', qty:'1 colher de chá cheia (3g)', subs:[]},
-      {name:'Leite', qty:'só pra dar liga (10ml)', subs:[]},
-      {name:'Porção de fruta', qty:'1 porção (75g)', subs:FRUIT_SUBS_PAO_QUEIJO},
-    ]},
-  ]},
-  janta: {label:'Janta', icon:'🍲', options:[
-    {name:'Opção 1', items:[
-      {name:'Arroz branco cozido', qty:'200g', subs:ARROZ_SUBS},
-      {name:'Peito de frango grelhado', qty:'120g', subs:FRANGO_SUBS},
-      {name:'Legumes e verduras', qty:'100g', subs:[]},
-    ]},
-    {name:'Opção 2 (Hambúrguer)', items:[
-      {name:'Pão de hambúrguer', qty:'1 unidade (50g)', subs:[]},
-      {name:'Patinho cru', qty:'150g', subs:[]},
-      {name:'Queijo mussarela', qty:'20g', subs:[]},
-      {name:'Molho (menos maionese)', qty:'20g', subs:[]},
-    ]},
-    {name:'Opção 3 (Pizza de pão sírio)', items:[
-      {name:'Pão sírio grande (16cm)', qty:'1 unidade (60g)', subs:[]},
-      {name:'Frango desfiado', qty:'120g', subs:[]},
-      {name:'Requeijão Light', qty:'30g', subs:[]},
-      {name:'Queijo muçarela', qty:'20g', subs:[]},
-      {name:'Molho de tomate', qty:'à vontade', subs:[]},
-    ]},
-  ]},
-  ceia: {label:'Ceia', icon:'🌙', items:[
-    {name:'Porção de fruta', qty:'2 porções (150g)', subs:FRUIT_SUBS_CEIA},
-    {name:'Whey protein concentrado', qty:'20g', subs:[]},
-    {name:'Leite integral em pó', qty:'20g', subs:['Iogurte zero ou desnatado — 150ml','Leite UHT Integral — 150ml']},
-  ]},
-};
-
-// Transcrição literal da "Lista de compras" do PDF (página 9) — categorizada
-// pra caber no mesmo componente de checklist já existente (o documento original
-// é uma tabela solta, sem categoria). Todo item agora tem `qty` (a pedido do
-// usuário em 2026-09-17, "quero que todos possuam uma forma de peso pra me
-// basear") — 3 níveis, sempre deixados explícitos no próprio texto:
-// 1) "/semana" — item do plano ativo, quantidade calculada (ver "ESTIMATIVA
-//    DE COMPRA SEMANAL" abaixo).
-// 2) "por porção" sem "estimativa" — peso de 1 porção que vem direto do
-//    documento do nutricionista (valor de substituição prescrito), útil se
-//    você trocar pra esse item num dia.
-// 3) "(estimativa)" — o documento não dá peso nenhum pra esse item (ele só
-//    aparece na lista de compras "crua" do PDF, sem gramatura em lugar
-//    nenhum do texto) — referência de porção usual, não veio da prescrição.
-// Alguns produtos (suco de uva, repositor eletrolítico, whey, mel, barrinha,
-// polvilho, fermento, leite em pó) não apareciam na lista original do PDF —
-// o documento só lista ingredientes citados como SUBSTITUIÇÃO em algum item,
-// não os itens da opção principal do plano — adicionados aqui pra lista ficar
-// completa de verdade.
-let SHOPPING_LIST = [
-  { cat:'Carboidratos', items:[
-    {name:'Arroz branco cozido', qty:'≈2,2kg cozido/semana (≈700-750g de arroz cru)'},
-    {name:'Arroz integral cozido', qty:'200g por porção (substituição do Arroz branco)'},
-    {name:'Aveia em flocos', qty:'≈40g por porção (estimativa)'},
-    {name:'Batata doce', qty:'236,5g por porção (substituição do Arroz branco)'},
-    {name:'Batata inglesa cozida', qty:'400g por porção (substituição do Arroz branco)'},
-    {name:'Batata palha - Yoki', qty:'≈30g por porção (estimativa, guarnição)'},
-    {name:'Cuscuz de milho cozido com sal', qty:'227,3g por porção (substituição do Arroz branco)'},
-    {name:'Feijão (Só Grãos)', qty:'200g por porção (substituição do Arroz branco)'},
-    {name:'Goma de tapioca', qty:'50g por porção (substituição do Pão francês)'},
-    {name:'Grão de bico cozido', qty:'200g por porção (substituição do Arroz branco)'},
-    {name:'Macarrão cozido', qty:'181,7g por porção (substituição do Arroz branco)'},
-    {name:'Pão bisnaguinha', qty:'≈50g por porção (estimativa, 2 unidades)'},
-    {name:'Pão de forma', qty:'2 fatias / 50g por porção (substituição do Pão francês)'},
-    {name:'Pão de forma integral', qty:'≈2 fatias / 50g por porção (estimativa, mesma referência do Pão de forma)'},
-    {name:'Pão francês', qty:'9 unidades/semana (≈450g)'},
-    {name:'Pão para hambúrguer', qty:'3 unidades/semana'},
-    {name:'Purê de batata inglesa', qty:'363,5g por porção (substituição do Arroz branco)'},
-    {name:'Abóbora cabotian cozida', qty:'454,5g por porção (substituição do Arroz branco)'},
-    {name:'Polvilho', qty:'≈50g/semana'},
-    {name:'Fermento químico em pó', qty:'≈3g/semana (sobra de qualquer lata)'},
-  ] },
-  { cat:'Proteínas', items:[
-    {name:'Carne (alcatra, contrafilé, coxão mole, filé mignon, lagarto, patinho) cozida/grelhada/assada com sal', qty:'3x/semana (≈360g) — diversificando o Almoço/Janta'},
-    {name:'Coxa de frango assada', qty:'2x/semana (≈240g) — diversificando o Almoço/Janta'},
-    {name:'Estrogonofe de carne', qty:'≈150g por porção (estimativa)'},
-    {name:'Estrogonofe de frango', qty:'≈150g por porção (estimativa)'},
-    {name:'Filé de peixe grelhado/assado', qty:'1x/semana (≈150g) — diversificando o Almoço/Janta'},
-    {name:'Frango desfiado', qty:'≈100g/semana'},
-    {name:'Lombo de porco assado', qty:'2x/semana (≈240g) — diversificando o Almoço/Janta'},
-    {name:'Ovo de galinha cozido', qty:'15 unidades/semana'},
-    {name:'Patinho cru', qty:'≈450g/semana'},
-    {name:'Peito de frango sem pele grelhado', qty:'3x/semana (≈360g) — diversificando o Almoço/Janta'},
-    {name:'Peito de peru defumado', qty:'≈40g por porção (estimativa, 2-3 fatias)'},
-    {name:'Whey protein concentrado', qty:'≈140g/semana'},
-    {name:'Barrinha de Proteína 45g', qty:'2 unidades/semana'},
-  ] },
-  { cat:'Frutas', items:[
-    {name:'Porção de fruta', qty:'≈2,4kg/semana no total — distribua entre 2-3 frutas que você prefere, da lista de substituição de cada refeição'},
-    {name:'Abacaxi', qty:'140g por porção'},
-    {name:'Acerola', qty:'20 unidades / 240g por porção'},
-    {name:'Banana', qty:'1 unidade grande / 55g por porção'},
-    {name:'Caju', qty:'1 unidade média / 140g por porção'},
-    {name:'Goiaba', qty:'1 unidade média / 130g por porção'},
-    {name:'Jaca', qty:'80g por porção'},
-    {name:'Kiwi', qty:'2 unidades médias / 152g por porção'},
-    {name:'Mamão', qty:'150g por porção'},
-    {name:'Maçã', qty:'1 unidade média / 130g por porção'},
-    {name:'Melancia', qty:'200g por porção'},
-    {name:'Melão', qty:'200g por porção'},
-    {name:'Morango', qty:'200g por porção'},
-    {name:'Pera', qty:'1 unidade média / 110g por porção'},
-    {name:'Pêssego', qty:'3 unidades médias / 180g por porção'},
-    {name:'Tangerina Ponkã', qty:'1 unidade média / 135g por porção'},
-    {name:'Uva', qty:'120g por porção'},
-  ] },
-  { cat:'Laticínios e ovos', items:[
-    {name:'Iogurte natural desnatado', qty:'≈300ml/semana'},
-    {name:'Leite de vaca desnatado UHT', qty:'≈150ml por porção (substituição do Leite integral em pó)'},
-    {name:'Queijo mussarela tradicional - Verde Campo', qty:'≈270g/semana'},
-    {name:'Requeijão', qty:'40g por porção (substituição do Queijo mussarela)'},
-    {name:'Requeijão Cremoso Light (Poços de Caldas)', qty:'30-40g por porção (substituição do Queijo mussarela)'},
-    {name:'Leite integral em pó', qty:'≈140g/semana'},
-  ] },
-  { cat:'Outros', items:[
-    {name:'Adoçante Zero Calorias, sem retrogosto (Puravida)', qty:'conforme o paladar (gotas/sachê — sem grama fixa no plano)'},
-    {name:'Farinha de linhaça', qty:'≈10-15g por porção (estimativa, 1 colher de sopa)'},
-    {name:'Geleia', qty:'≈15-20g por porção (estimativa, 1 colher de sopa)'},
-    {name:'Granola', qty:'≈30g/semana'},
-    {name:'Molho barbecue', qty:'≈20g por porção (estimativa, 1 colher de sopa)'},
-    {name:'Semente de abóbora', qty:'≈15g por porção (estimativa, 1 colher de sopa)'},
-    {name:'Semente de chia', qty:'≈15g por porção (estimativa, 1 colher de sopa)'},
-    {name:'Vegetais cozidos com sal', qty:'≈1,1kg/semana'},
-    {name:'Mel', qty:'≈40g/semana'},
-  ] },
-];
-// ---------- ESTIMATIVA DE COMPRA SEMANAL (premissas usadas acima) ----------
-// Café/Pós-treino/Almoço/Ceia: todo dia (x7). Lanche (4 opções): rotação
-// uniforme (Opção1 x2, Opção2 x2, Opção3 x2, Opção4 x1). Janta: SEM a Opção 3
-// (pizza de pão sírio, tirada a pedido do usuário em 2026-09-17) — só Opção1
-// (x4) e Opção2 (x3). A proteína do Almoço/Janta Opção1 (11 ocorrências —
-// "Peito de frango grelhado" no documento) foi diversificada entre as 5
-// opções de substituição já autorizadas pelo nutricionista pro mesmo item,
-// a pedido do usuário, em vez de assumir 100% peito de frango toda vez.
-// Conversão cru↔cozido de arroz e frango é regra de dedo (arroz rende ~3x
-// cozido; grelhar reduz o peso da carne em ~25-30%) — aproximação, não vem
-// do documento do nutricionista.
-
+// Versão compartilhável: nenhum plano alimentar de outra pessoa é incluído.
+let DIET_PLAN={cafe:{label:'Café da manhã',icon:'☕',items:[]},almoco:{label:'Almoço',icon:'🍛',items:[]},lanche:{label:'Lanche',icon:'🍪',options:[{name:'Minha opção',items:[]}]},janta:{label:'Jantar',icon:'🍽️',options:[{name:'Minha opção',items:[]}]},ceia:{label:'Ceia',icon:'🌙',items:[]}};
+let SHOPPING_LIST=[{cat:'Outros',items:[]}];
 const K_SHOP_CHECKED = 'shopping-list-checked';
 let shopCheckedCache = null;
 async function loadShopCheckedCache(){
@@ -2744,7 +2604,6 @@ async function persistShopCheckedCache(){
 }
 // Reseta o estado de "comprado" (checkbox marcado) semanalmente, sempre que a
 // aba Cardápio é aberta numa semana nova (segunda-feira como início, mesmo
-// corte já usado na Meta semanal de treino) — pedido do usuário em 2026-09-17.
 // Só o que foi marcado como comprado desmarca; itens removidos/adicionados
 // por ele continuam do jeito que estavam. Sem processo em segundo plano (é
 // só um app local), então o reset acontece na próxima vez que a aba abrir
@@ -2772,7 +2631,6 @@ async function toggleShopItem(key){
 }
 
 // ---------- LISTA DE COMPRAS PERSONALIZADA (remover item da lista base /
-// adicionar item novo) — pedido do usuário em 2026-09-17. Itens da lista base
 // (SHOPPING_LIST, transcrita do plano) nunca são apagados de verdade do
 // código — "remover" só marca a chave como escondida (`shopRemovedCache`),
 // reversível se algum dia precisar reverter. Itens adicionados pelo usuário
@@ -2967,7 +2825,6 @@ let corridaStatusUnsub = null;
 const ORIGEM_BADGE = {print:'📷', push_garmin:'⚡', strava:'🔄', manual:'✍️', 'push_garmin+print':'⚡📷', 'push_garmin+manual':'⚡✍️'};
 
 // ---------- EDITAR/EXCLUIR (Corrida/Natação/CrossFit) ----------
-// Pedido do usuário (2026-09-15): poder editar ou excluir qualquer treino já salvo, nas
 // 3 abas. Em vez de gesto de "segurar" (mais frágil entre mouse/toque, e nada no resto
 // do app usa isso), reaproveita o clique-pra-expandir que já existe: o detalhe expandido
 // ganha os botões. Excluir pede confirmação inline (sem `confirm()` nativo — não dá pra
@@ -2994,16 +2851,19 @@ async function deleteActivityEntry(collection, id){
   showToast('Treino excluído.');
 }
 async function editActivityEntry(collection, id){
-  const db = window.claude ? await window.claude.use('db') : null;
-  if(!db){ showToast('Banco de dados não disponível nesta sessão.'); return; }
-  const snap = await db.doc(`${collection}/${id}`).get();
-  if(!snap.exists){ showToast('Treino não encontrado.'); return; }
-  const data = snap.data();
-  if(collection==='crossfit'){
+  try{
+   const db = window.claude ? await window.claude.use('db') : null;
+   if(!db){ showToast('Banco de dados não disponível nesta sessão.'); return; }
+   const snap = await db.collection(collection).doc(id).get();
+   if(!snap.exists){ showToast('Treino não encontrado.'); return; }
+   const data = snap.data();
+   if(collection==='crossfit'){
+    const card=document.getElementById('crossfit-print-card');
+    if(card)card.open=true;
     document.getElementById('crossfit-print-status').innerHTML = '';
     renderCrossfitPrintReview({...data, duracao_min: data.duracao_s!=null ? data.duracao_s/60 : undefined}, {editId:id});
     document.getElementById('crossfit-print-review').scrollIntoView({behavior:'smooth', block:'center'});
-  } else if(collection==='corridas'){
+   } else if(collection==='corridas'){
     document.getElementById('corrida-print-status').innerHTML = '';
     renderCorridaPrintReview({
       data: data.data, distancia_km: data.distancia_km,
@@ -3011,7 +2871,7 @@ async function editActivityEntry(collection, id){
       calorias: data.calorias, calorias_reportadas:data.calorias_reportadas, calorias_tipo:data.calorias_tipo, calorias_referencia:data.calorias_referencia, fc_media: data.fc_media, fc_max: data.fc_max,
     }, {editId:id});
     document.getElementById('corrida-print-review').scrollIntoView({behavior:'smooth', block:'center'});
-  } else if(collection==='natacao'){
+   } else if(collection==='natacao'){
     document.getElementById('natacao-print-status').innerHTML = '';
     renderNatacaoPrintReview({
       data: data.data, distancia_m: data.distancia_m,
@@ -3019,7 +2879,8 @@ async function editActivityEntry(collection, id){
       calorias: data.calorias, calorias_reportadas:data.calorias_reportadas, calorias_tipo:data.calorias_tipo, calorias_referencia:data.calorias_referencia, fc_media: data.fc_media, fc_max: data.fc_max,
     }, {editId:id});
     document.getElementById('natacao-print-review').scrollIntoView({behavior:'smooth', block:'center'});
-  }
+   }
+  }catch(error){console.error('Editar treino:',error);showToast('Não foi possível abrir a edição. Tente novamente.');}
 }
 
 // ---------- DEDUP ENTRE FONTES (print/push/Strava) ----------
@@ -3276,10 +3137,13 @@ async function calibrateGarminSportPrint(data,sport){
   return data;
 }
 async function handleCorridaPrintFile(e){
-  const file = e.target.files[0];
-  if(!file) return;
+  const rawFile = e.target.files[0];
+  if(!rawFile) return;
   const statusEl = document.getElementById('corrida-print-status');
   document.getElementById('corrida-print-review').innerHTML = '';
+  let file;
+  try{file=await ForjaImageFiles.prepare(rawFile);}catch(error){statusEl.textContent=error.message;e.target.value='';return;}
+  e.target.value='';
   const sample = window.claude ? await window.claude.use('sample') : null;
   if(!sample){
     statusEl.innerHTML = '<p class="calc-formula-note">Leitura por IA não disponível nesta sessão.</p>';
@@ -3526,10 +3390,13 @@ function renderNatacaoWeeklyCharts(sessoes){
   }).join('');
 }
 async function handleNatacaoPrintFile(e){
-  const file = e.target.files[0];
-  if(!file) return;
+  const rawFile = e.target.files[0];
+  if(!rawFile) return;
   const statusEl = document.getElementById('natacao-print-status');
   document.getElementById('natacao-print-review').innerHTML = '';
+  let file;
+  try{file=await ForjaImageFiles.prepare(rawFile);}catch(error){statusEl.textContent=error.message;e.target.value='';return;}
+  e.target.value='';
   const sample = window.claude ? await window.claude.use('sample') : null;
   if(!sample){
     statusEl.innerHTML = '<p class="calc-formula-note">Leitura por IA não disponível nesta sessão.</p>';
@@ -3943,13 +3810,15 @@ async function buildOcrWorkerUrl(){
   return ocrWorkerUrlPromise;
 }
 async function handleCrossfitPrintFile(e){
-  const file = e.target.files[0];
-  if(!file) return;
+  const rawFile = e.target.files[0];
+  if(!rawFile) return;
+  document.getElementById('crossfit-print-card').open = true;
   const statusEl = document.getElementById('crossfit-print-status');
   document.getElementById('crossfit-print-review').innerHTML = '';
   statusEl.innerHTML = '🔍 Lendo o print... isso pode levar alguns segundos.';
   try{
-    if(typeof Tesseract === 'undefined') throw new Error('Tesseract não carregou');
+    const file=await ForjaImageFiles.prepare(rawFile);
+    const ocr=await ensureOcrLibrary();
     const rawDataUrl = await new Promise((resolve,reject)=>{
       const reader = new FileReader();
       reader.onload = ()=>resolve(reader.result);
@@ -3958,10 +3827,9 @@ async function handleCrossfitPrintFile(e){
     });
     const dataUrl = await preprocessImageForOcr(rawDataUrl);
     // Sem timeout, um travamento (ex.: o motor via importScripts também bloqueado) fica
-    // preso em "Lendo..." pra sempre (confirmado em uso real por usuário, 2026-09-15).
     const ocrTimeout = new Promise((_,reject)=>setTimeout(()=>reject(Object.assign(new Error('ocr_timeout'),{code:'ocr_timeout'})), 25000));
     const workerPath = await buildOcrWorkerUrl();
-    const result = await Promise.race([Tesseract.recognize(dataUrl, 'por', {workerPath, corePath:'core'}), ocrTimeout]);
+    const result = await Promise.race([ocr.recognize(dataUrl, 'por', {workerPath, corePath:'core'}), ocrTimeout]);
     const parsed = parseCrossfitWod(result.data.text || '');
     statusEl.innerHTML = parsed.exercicios.length
       ? `✓ Li ${parsed.exercicios.length} exercício(s) — confira antes de salvar.`
@@ -3994,6 +3862,7 @@ function addCrossfitExercicioRow(){
   document.getElementById('crossfit-print-exercicios').insertAdjacentHTML('beforeend', crossfitExercicioRowHtml());
 }
 function startCrossfitManualEntry(){
+  document.getElementById('crossfit-print-card').open = true;
   document.getElementById('crossfit-print-status').innerHTML = '';
   renderCrossfitPrintReview({}, {manual:true});
 }
@@ -4206,10 +4075,16 @@ function switchTab(tab){
   if(tab==='corrida') renderCorridaTab();
   if(tab==='natacao') renderNatacaoTab();
   if(tab==='crossfit') renderCrossfitTab();
-  if(tab==='academia') window.ForjaGymTraining?.render?.().then(()=>window.ForjaGymUI?.render?.());
-  if(tab==='biblioteca') window.ForjaGymOverview?.renderLibrary?.();
-  if(tab==='relatorios') window.ForjaGymOverview?.renderReports?.();
-  if(tab==='progresso'){window.ForjaProgressCalendar?.init?.();window.ForjaProgressCalendar?.render?.();}
+  if(['academia','biblioteca','relatorios','progresso'].includes(tab)){
+    if(tab==='academia'){const status=document.getElementById('gym-training-status');if(status)status.textContent='Carregando Academia…';}
+    window.ForjaGymLazy.ensure().then(async()=>{
+      if(!document.querySelector(`.tab.active[data-tab="${tab}"]`))return;
+      if(tab==='academia')await window.ForjaGymUI.render();
+      if(tab==='biblioteca')await window.ForjaGymOverview.renderLibrary();
+      if(tab==='relatorios'){await window.ForjaGymOverview.renderReports();await window.ForjaSportReports?.render?.();}
+      if(tab==='progresso'){await window.ForjaProgressCalendar?.init?.();await window.ForjaProgressCalendar?.render?.();}
+    }).catch(error=>{const status=document.getElementById(tab==='academia'?'gym-training-status':'app-status');if(status)status.textContent=error.message;else window.showToast?.(error.message);});
+  }
   if(tab==='corpo')window.ForjaWeightGoal?.render?.();
   if(tab==='dieta') renderDietTab();
   if(tab==='cardapio') renderCardapioTab();
@@ -4295,7 +4170,7 @@ async function renderDashboard(){
   await window.ForjaDashboardLayout?.apply?.();
   window.ForjaHomeHero?.render?.({
     trained:sportDays.has(todayKey()),
-    waterMl:bodyArr.filter(row=>row.type==='water'&&row.date===todayKey()).reduce((sum,row)=>sum+waterMl(row),0),
+     waterMl:window.ForjaGarminWater?.total?.(todayKey(),bodyArr) ?? bodyArr.filter(row=>row.type==='water'&&row.date===todayKey()).reduce((sum,row)=>sum+waterMl(row),0),
     waterGoal:waterDailyGoal,
     eaten:comido,
     foodGoal:goal,
@@ -4425,12 +4300,12 @@ async function runInit(){
   await loadNutritionGoal();
   await loadWaterGoal();
   syncWaterGoalUI();
+  await renderDashboard();
   await renderBody();
   await renderProgressGallery();
   await initReminderState();
   await initGymReminderState();
   await renderGymStatus();
-  await renderDashboard();
   tryInitGDriveWhenReady();
   await initWeightPending();
   await initCalorieCalc();

@@ -2,11 +2,16 @@
  'use strict';
  const C=root.ForjaDietCore,el=id=>document.getElementById(id);
  const AI_ACTIVATION_KEY='nutrition-ai-activation-v1';
+ const DRAFT_KEY='diet-pending-draft-v1';
  let catalog=[],mine=[],bindings={},rows=[],currentKey=null,optionIndex=0,initialized=false,busy=false,saving=false,revision=0,customTarget=null,loadGeneration=0;
+ let draftTimer=null;
  const node=(tag,value)=>Object.assign(document.createElement(tag),{textContent:value});
  const fmt=v=>v==null?'não informado':Number(v).toLocaleString('pt-BR',{maximumFractionDigits:1});
  async function photoFingerprint(image){if(root.crypto?.subtle){const digest=await root.crypto.subtle.digest('SHA-256',new TextEncoder().encode(image));return Array.from(new Uint8Array(digest),byte=>byte.toString(16).padStart(2,'0')).join('');}let hash=2166136261;for(let i=0;i<image.length;i++)hash=Math.imul(hash^image.charCodeAt(i),16777619);return image.length.toString(16)+'-'+(hash>>>0).toString(16);}
- function notify(value){el('diet-simple-status').textContent=value;root.ForjaRoutineDiet?.changed();}
+ function scheduleDraft(){if(!initialized)return;clearTimeout(draftTimer);draftTimer=setTimeout(async()=>{try{const text=el('diet-simple-text').value,hasContent=rows.length||text.trim();await root.ForjaStorage.set(DRAFT_KEY,hasContent?JSON.stringify({date:selectedDietDate,meal:dietSelectedMealType,rows,text}):'');}catch{}},350);}
+ function clearTextError(){const field=el('diet-simple-text-error');if(field){field.hidden=true;field.textContent='';}el('diet-simple-text')?.removeAttribute('aria-invalid');}
+ function showTextError(value){const field=el('diet-simple-text-error');if(field){field.textContent=value;field.hidden=false;}el('diet-simple-text')?.setAttribute('aria-invalid','true');notify(value);}
+ function notify(value){el('diet-simple-status').textContent=value;root.ForjaRoutineDiet?.changed();scheduleDraft();}
  async function aiActivation(service){try{const row=await root.ForjaStorage.get(AI_ACTIVATION_KEY),saved=row?.value?JSON.parse(row.value):null;return saved?.service===service&&saved?.activated===true;}catch{return false;}}
  async function refreshAIStatus(){
   const field=el('diet-ai-status'),setup=el('diet-ai-setup');if(!field||!setup)return false;
@@ -18,9 +23,9 @@
   return !!active;
  }
  async function rememberAI(service){await root.ForjaStorage.set(AI_ACTIVATION_KEY,JSON.stringify({service,activated:true,at:new Date().toISOString()}));await refreshAIStatus();}
- function invalidate(){revision++;dietPendingEstimate=null;el('diet-estimate-result').replaceChildren();el('diet-simple-save').disabled=true;}
+ function invalidate(){revision++;dietPendingEstimate=null;el('diet-estimate-result').replaceChildren();el('diet-simple-save').disabled=true;scheduleDraft();}
  function syncPhotoControls(){el('diet-simple-photo-remove').hidden=el('diet-simple-photo-preview').hidden;}
- function clearPhoto(){invalidate();const preview=el('diet-simple-photo-preview');preview.hidden=true;preview.removeAttribute('src');el('diet-simple-photo').value='';syncPhotoControls();total();notify('Foto removida. Os alimentos da refeição foram mantidos.');}
+ function clearPhoto(){invalidate();const preview=el('diet-simple-photo-preview');preview.hidden=true;preview.removeAttribute('src');el('diet-simple-photo').value='';el('diet-simple-photo-gallery').value='';syncPhotoControls();total();notify('Foto removida. Os alimentos da refeição foram mantidos.');}
  function plan(){return DIET_PLAN;}
  async function persist(){await root.ForjaStorage.set('diet-food-bindings',JSON.stringify(bindings));await root.ForjaStorage.set('diet-recurring',JSON.stringify(mine.filter(r=>r.recurring).map(r=>({name:r.name,foodId:r.food?.id,food:r.food,quantity:r.quantity,unit:r.unit}))));}
  function search(){
@@ -36,10 +41,13 @@
  }
  function render(){
   const area=el('diet-simple-items');area.replaceChildren();
+  const photoRows=rows.filter(row=>row.photoFingerprint),photoReview=el('diet-photo-review');
+  photoReview.hidden=!photoRows.length;
+  if(photoRows.length){const unresolved=photoRows.filter(row=>!row.food).length;photoReview.textContent=`Foto analisada: ${photoRows.length} ${photoRows.length===1?'alimento sugerido':'alimentos sugeridos'}. Confira a porção e calorias de cada item antes de salvar.${unresolved?` ${unresolved} ${unresolved===1?'item precisa':'itens precisam'} de referência nutricional.`:''} A refeição ainda não foi salva.`;}
   for(const id of ['diet-detailed-review-title','diet-simple-items','diet-simple-total','diet-simple-sources','diet-simple-save'])el(id).hidden=!rows.length;
   if(!rows.length)area.append(node('p','Adicione os alimentos que você comeu.'));
   for(const [index,row]of rows.entries()){
-   const card=node('div','');card.className='simple-food-row';card.append(node('strong',row.name));
+   const card=node('div','');card.className='simple-food-row';if(row.photoFingerprint)card.classList.add('from-photo');card.append(node('strong',row.name));
    const portion=row.food?.portion_quantity||1,byPortion=!!row.food?.portion_quantity;
    const quantity=node('label',byPortion?'Porções consumidas (1 porção = '+portion+' '+row.unit+')':'Quantidade consumida ('+row.unit+')'),input=document.createElement('input');input.type='number';input.min='0.1';input.step='any';input.value=row.quantity==null?'':row.quantity/portion;input.dataset.rowQuantity=index;
    input.addEventListener('input',()=>{invalidate();row.quantity=input.value.trim()===''?null:Number(input.value)*portion;total();});quantity.append(input);card.append(quantity);
@@ -73,7 +81,7 @@
  function add(){const select=el('diet-simple-food'),id=select.value||select.querySelector('option')?.value,all=el('diet-simple-all').checked||!!el('diet-simple-search').value.trim();const found=all?catalog.find(f=>f.id===id):mine.find(r=>C.fold(r.name)===id);if(!found){notify('Selecione um alimento.');return;}invalidate();const remembered=all?mine.find(r=>r.food?.id===id):null;rows.push(all?(remembered?{...remembered}:{name:found.name,food:found,quantity:null,unit:found.unit||'g'}):{...found});render();}
  function startEmpty(){if(busy)return;invalidate();rows=[];customTarget=null;el('diet-simple-option').hidden=true;el('diet-simple-option-label').hidden=true;el('diet-simple-photo-preview').hidden=true;el('diet-simple-photo-preview').removeAttribute('src');syncPhotoControls();el('diet-simple-manual').hidden=false;render();notify('Refeição vazia. Adicione qualquer alimento ou produto abaixo.');}
  function showMethod(method){
-  const ids={text:'quick-entry',food:'diet-table-panel',barcode:'barcode-panel',photo:'diet-photo-method',custom:'diet-table-panel'};
+  const ids={text:'quick-entry',ai:'diet-bulk-panel',food:'diet-table-panel',barcode:'barcode-panel',photo:'diet-photo-method',custom:'diet-table-panel'};
   if(!ids[method])return;el('diet-add-card').classList.toggle('diet-custom-active',method==='custom');
   for(const [name,id] of Object.entries(ids))if(name!=='custom'){
    const panel=el(id);panel.hidden=name!==method&&!(method==='custom'&&name==='food');panel.open=!panel.hidden;
@@ -86,8 +94,24 @@
   for(const button of document.querySelectorAll('[data-diet-method]')){button.classList.toggle('active',button.dataset.dietMethod===method);button.setAttribute('aria-pressed',String(button.dataset.dietMethod===method));}
   if(method==='custom')openCustom();
  }
- function openCustom(index=null){customTarget=Number.isInteger(index)?index:null;el('diet-add-card').classList.add('diet-custom-active');for(const id of ['quick-entry','barcode-panel','diet-photo-method'])el(id).hidden=true;for(const button of document.querySelectorAll('[data-diet-method]')){const selected=button.dataset.dietMethod==='custom';button.classList.toggle('active',selected);button.setAttribute('aria-pressed',String(selected));}el('diet-table-panel').hidden=false;el('diet-table-panel').open=true;el('diet-add-panel').hidden=false;el('diet-add-panel').open=true;el('diet-custom-panel').hidden=false;el('diet-custom-panel').open=true;el('diet-simple-manual').hidden=false;for(const opt of el('diet-custom-unit').querySelectorAll('option'))opt.selected=opt.value===(customTarget!==null?rows[customTarget].unit:'g');el('diet-custom-name').value=customTarget!==null?rows[customTarget].name:el('diet-simple-search').value;el('diet-custom-quantity').value=customTarget!==null?(rows[customTarget].quantity??''):'';el('diet-custom-basis').value='100';for(const key of ['kcal','carbs_g','protein_g','fat_g'])el('diet-custom-'+key).value=customTarget!==null&&Number.isFinite(rows[customTarget].food?.[key])?rows[customTarget].food[key]:'';notify('Preencha os dados do rótulo. O produto será acrescentado aos itens já lançados.');}
- function parseText(){try{const proposed=C.parse(el('diet-simple-text').value,mine,catalog);invalidate();rows.push(...proposed);el('diet-simple-text').value='';render();notify('Alimentos acrescentados. Confira as porções; você pode adicionar mais itens por qualquer método.');}catch(error){notify(error.message);}}
+ function openCustom(index=null){customTarget=Number.isInteger(index)?index:null;el('diet-add-card').classList.add('diet-custom-active');for(const id of ['quick-entry','diet-bulk-panel','barcode-panel','diet-photo-method'])el(id).hidden=true;for(const button of document.querySelectorAll('[data-diet-method]')){const selected=button.dataset.dietMethod==='custom';button.classList.toggle('active',selected);button.setAttribute('aria-pressed',String(selected));}el('diet-table-panel').hidden=false;el('diet-table-panel').open=true;el('diet-add-panel').hidden=false;el('diet-add-panel').open=true;el('diet-custom-panel').hidden=false;el('diet-custom-panel').open=true;el('diet-simple-manual').hidden=false;for(const opt of el('diet-custom-unit').querySelectorAll('option'))opt.selected=opt.value===(customTarget!==null?rows[customTarget].unit:'g');el('diet-custom-name').value=customTarget!==null?rows[customTarget].name:el('diet-simple-search').value;el('diet-custom-quantity').value=customTarget!==null?(rows[customTarget].quantity??''):'';el('diet-custom-basis').value='100';for(const key of ['kcal','carbs_g','protein_g','fat_g'])el('diet-custom-'+key).value=customTarget!==null&&Number.isFinite(rows[customTarget].food?.[key])?rows[customTarget].food[key]:'';notify('Preencha os dados do rótulo. O produto será acrescentado aos itens já lançados.');}
+ function parseText(){clearTextError();try{const proposed=C.parse(el('diet-simple-text').value,mine,catalog);invalidate();rows.push(...proposed);el('diet-simple-text').value='';render();notify('Alimentos acrescentados. Confira as porções; você pode adicionar mais itens por qualquer método.');}catch(error){notify(error.message);}}
+ async function parseTextAI(){
+  if(busy)return;
+  const text=el('diet-simple-text').value.trim();
+  if(!text){showTextError('Escreva os alimentos e as quantidades antes de pedir a interpretação.');return;}
+  if(text.length>4000){showTextError('Use até 4.000 caracteres por análise.');return;}
+  let session,service;try{const s=await root.ForjaStorage.get('strava-session'),u=await root.ForjaStorage.get('strava-service-url');session=s?JSON.parse(s.value):null;service=u?root.ForjaStrava.validateServiceUrl(u.value):null;}catch{}
+  if(!session?.token||session.pending||!service){notify('Conecte sua conta na área Strava para usar a IA do seu serviço privado.');return;}
+  clearTextError();busy=true;const originalRevision=revision,button=el('diet-simple-ai-parse'),controller=new AbortController(),timer=setTimeout(()=>controller.abort(),60000);button.disabled=true;notify('Interpretando alimentos e quantidades com IA…');
+  try{
+   const response=await root.fetch(service+'/nutrition/analyze-text',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+session.token},body:JSON.stringify({text}),credentials:'omit',redirect:'error',cache:'no-store',signal:controller.signal});
+   const value=await response.json();
+   if(!response.ok)throw Error(response.status===429?'Limite gratuito de análises atingido. Use a leitura local do texto.':response.status===401?'Conexão expirada. Reconecte na aba Mais.':[404,503].includes(response.status)?'A interpretação por IA ainda não está disponível no seu serviço Cloudflare.':'A IA não conseguiu interpretar esse texto. Confira alimentos e quantidades e tente novamente.');
+   if(revision!==originalRevision||el('diet-simple-text').value.trim()!==text)throw Error('O texto ou a refeição mudou durante a análise. A resposta foi descartada para preservar sua edição.');
+   const proposed=C.fromAI(value,mine,catalog,'texto');invalidate();rows.push(...proposed);el('diet-simple-text').value='';render();notify('Alimentos interpretados e acrescentados. Confira as quantidades e os nutrientes antes de salvar.');
+  }catch(error){showTextError(error.name==='AbortError'?'A análise demorou demais. O texto foi mantido para nova tentativa.':error.message);}finally{clearTimeout(timer);busy=false;button.disabled=false;total();}
+ }
 async function save(){if(busy)return;if(!dietSelectedMealType){notify('Selecione o tipo de refeição.');return;}const value=total();if(!value)return;busy=true;saving=true;el('diet-simple').inert=true;const savedContext={date:selectedDietDate,meal:dietSelectedMealType};el('diet-simple-save').disabled=true;try{const before=(await loadDietCache()).length;ForjaNutrition.validate(value);dietPendingEstimate=value;await root.saveDietEntry();if((await loadDietCache()).length>before){const recent=rows.filter(r=>r.food).map(r=>({...r,recent:true,lastUsed:Date.now()}));for(const r of recent){const known=mine.find(m=>m.food?.id===r.food.id);if(known)Object.assign(known,r);else mine.unshift(r);if(!catalog.some(f=>f.id===r.food.id))catalog.push(r.food);await root.ForjaNutritionMemory?.saveCorrection?.({name:r.name,unit:r.unit,barcode:r.food?.barcode,kcal:r.food?.kcal,carbs:r.food?.carbs_g,protein:r.food?.protein_g,fat:r.food?.fat_g,source:'user'});}await root.ForjaStorage.set('diet-recent-foods',JSON.stringify(mine.filter(r=>r.recent).slice(0,15))).catch(()=>{});search();root.ForjaRoutineDiet?.onSaved(savedContext);rows=[];currentKey=null;el('diet-simple-text').value='';el('diet-simple-photo-preview').hidden=true;el('diet-simple-photo-preview').removeAttribute('src');syncPhotoControls();render();root.ForjaDietQuick?.close?.();notify('Refeição salva.');}}catch(error){notify(error.message);}finally{busy=false;saving=false;el('diet-simple').inert=false;total();}}
  async function custom(){try{
   const name=el('diet-custom-name').value.trim(),unit=el('diet-custom-unit').value||'g',quantity=el('diet-custom-quantity').value.trim();
@@ -100,13 +124,12 @@ async function save(){if(busy)return;if(!dietSelectedMealType){notify('Selecione
   const row={name,food,quantity:quantity?Number(quantity):basis,unit,recurring:true};mine.push(row);invalidate();if(customTarget!==null&&rows[customTarget])rows[customTarget]=row;else rows.push({...row});customTarget=null;await persist();search();render();showMethod('food');notify('Produto adicionado à refeição e guardado para a próxima vez. Confira o total e salve a refeição.');
  }catch(error){notify(error.message);}}
  async function analyze(file){
-  el('diet-simple-photo').value='';
+  el('diet-simple-photo').value='';el('diet-simple-photo-gallery').value='';
   if(busy||!file)return;
   if(!dietSelectedMealType){const message='Selecione a refeição (Almoço, Lanche ou Livre) e escolha a foto novamente.';notify(message);if(root.showToast)root.showToast(message);return;}
   let session,service;try{const s=await root.ForjaStorage.get('strava-session'),u=await root.ForjaStorage.get('strava-service-url');session=s?JSON.parse(s.value):null;service=u?root.ForjaStrava.validateServiceUrl(u.value):null;}catch{}
   if(!session?.token||session.pending||!service){notify('Conecte sua conta na área Strava para identificar este aparelho no serviço privado de análise.');return;}
-  if(!['image/jpeg','image/png','image/webp'].includes(file.type)){notify('Use uma foto JPG, PNG ou WebP.');return;}
-  if(file.size>20*1024*1024){notify('Escolha uma foto menor que 20 MB.');return;}
+  try{file=await root.ForjaImageFiles.prepare(file);}catch(error){notify(error.message);return;}
   busy=true;total();notify('Preparando foto para análise…');const originalRevision=revision,controller=new AbortController(),timer=setTimeout(()=>controller.abort(),60000);
   try{
    const bitmap=await root.createImageBitmap(file),canvas=document.createElement('canvas');const factor=Math.min(1,1024/Math.max(bitmap.width,bitmap.height));canvas.width=Math.max(1,Math.round(bitmap.width*factor));canvas.height=Math.max(1,Math.round(bitmap.height*factor));canvas.getContext('2d').drawImage(bitmap,0,0,canvas.width,canvas.height);bitmap.close();const image=canvas.toDataURL('image/jpeg',0.8).split(',')[1];
@@ -118,8 +141,8 @@ async function save(){if(busy)return;if(!dietSelectedMealType){notify('Selecione
    const response=await root.fetch(service+'/nutrition/analyze',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+session.token},body:JSON.stringify({image}),credentials:'omit',redirect:'error',cache:'no-store',signal:controller.signal});
    const value=await response.json();if(response.status===422&&/^AI (?:response|food|found)/.test(String(value?.error||'')))try{await rememberAI(service);}catch{}if(!response.ok)throw Error(response.status===429?'Cota gratuita ou limite diário atingido. Use o lançamento manual.':response.status===401?'Conexão expirada. Reconecte na aba Mais.':[404,503].includes(response.status)?'A IA está indisponível neste serviço. Confira a configuração na Cloudflare.':response.status===422?({'AI response format invalid':'A IA respondeu, mas o formato da resposta não pôde ser lido.','AI food list invalid':'A IA respondeu sem uma lista válida de alimentos.','AI found no foods':'A IA não identificou alimentos nesta foto.','AI food quantities invalid':'A IA identificou itens, mas devolveu quantidades ou unidades inválidas.'}[value.error]||'A resposta da IA não pôde ser usada. Precisamos verificar o formato ou as quantidades.'):'Não foi possível analisar a foto. Use o lançamento manual.');
    if(revision!==originalRevision)throw Error('A refeição mudou durante a análise. A resposta foi descartada para preservar sua edição.');
-   const proposed=C.fromAI(value,mine,catalog);invalidate();rows=rows.filter(row=>row.photoFingerprint!==fingerprint);rows.push(...proposed.map(row=>({...row,photoFingerprint:fingerprint})));render();try{await rememberAI(service);}catch{}notify(proposed.every(row=>row.food)?'Foto lida e acrescentada. Confira porções e nutrientes antes de salvar.':'Foto lida e acrescentada. Complete os itens ainda sem nutrientes antes de salvar.');
-  }catch(error){notify(error.name==='AbortError'?'A análise demorou demais. Use o lançamento manual.':error.message);}finally{clearTimeout(timer);busy=false;total();el('diet-simple-photo').value='';}
+   const proposed=C.fromAI(value,mine,catalog);invalidate();rows=rows.filter(row=>row.photoFingerprint!==fingerprint);rows.push(...proposed.map(row=>({...row,photoFingerprint:fingerprint})));render();el('diet-photo-review').scrollIntoView?.({behavior:'smooth',block:'center'});try{await rememberAI(service);}catch{}notify(proposed.every(row=>row.food)?'Foto lida e acrescentada. Confira porções e nutrientes antes de salvar.':'Foto lida e acrescentada. Complete os itens ainda sem nutrientes antes de salvar.');
+  }catch(error){notify(error.name==='AbortError'?'A análise demorou demais. Use o lançamento manual.':error.message);}finally{clearTimeout(timer);busy=false;total();el('diet-simple-photo').value='';el('diet-simple-photo-gallery').value='';}
  }
  async function init(){
   if(initialized)return;initialized=true;catalog=(await root.ForjaReferences.foods()).map(food=>{const copy={...food},trace=[];for(const key of ['kcal','protein_g','carbs_g','fat_g'])if(copy[key]===null&&copy[key+'_source']==='Tr'){copy[key]=0;trace.push({protein_g:'proteína',carbs_g:'carboidratos',fat_g:'gordura',kcal:'calorias'}[key]);}if(trace.length)copy.trace_nutrients=trace;return copy;});const stored=await root.ForjaStorage.get('food-custom');if(stored){const extra=JSON.parse(stored.value);if(Array.isArray(extra))catalog.push(...extra);}
@@ -134,13 +157,15 @@ async function save(){if(busy)return;if(!dietSelectedMealType){notify('Selecione
    if(pending){invalidate();currentKey=key;render();notify('Tipo de refeição alterado. Os alimentos e valores preenchidos foram mantidos.');return Promise.resolve();}
    return root.ForjaDietFlow.loadMeal(key);
   };
-  for(const [id,fn,event]of [['diet-simple-search',search,'input'],['diet-simple-all',search,'change'],['diet-simple-add',add,'click'],['diet-simple-parse',parseText,'click'],['diet-simple-save',save,'click'],['diet-custom-save',custom,'click'],['diet-simple-option',selectPlanOption,'change'],['diet-simple-photo',e=>analyze(e.target.files?.[0]),'change'],['diet-simple-photo-remove',clearPhoto,'click']])el(id).addEventListener(event,fn);
+  for(const [id,fn,event]of [['diet-simple-search',search,'input'],['diet-simple-all',search,'change'],['diet-simple-add',add,'click'],['diet-simple-parse',parseText,'click'],['diet-simple-ai-parse',parseTextAI,'click'],['diet-simple-save',save,'click'],['diet-custom-save',custom,'click'],['diet-simple-option',selectPlanOption,'change'],['diet-simple-photo',e=>analyze(e.target.files?.[0]),'change'],['diet-simple-photo-gallery',e=>analyze(e.target.files?.[0]),'change'],['diet-simple-photo-remove',clearPhoto,'click']])el(id).addEventListener(event,fn);
+  el('diet-simple-text').addEventListener('input',()=>{clearTextError();scheduleDraft();});
   for(const name of ['setDietDate','shiftDietDate','jumpToDietDate']){const old=root[name];root[name]=function(...args){if(saving)return;loadGeneration++;invalidate();rows=[];currentKey=null;old(...args);render();};}
   el('food-search').closest('details').hidden=true;
   for(const id of ['diet-photo-label','diet-label-label','diet-photo-note','diet-input']){const n=el(id);if(n)n.hidden=true;}
   el('diet-input').previousElementSibling.hidden=true;document.querySelector('[onclick="estimateDietCalories()"]') .hidden=true;
-  el('diet-meal-type-grid').parentElement.querySelector('.calc-formula-note').textContent='Escolha a refeição e como quer registrar. Combine métodos sem perder o que já adicionou.';
+  const intro=el('diet-add-card')?.querySelector(':scope > .calc-formula-note');if(intro)intro.textContent='Adicione alimentos, foto ou texto. Confira o resultado antes de salvar.';
   renderMealTypeButtons();search();render();showMethod('food');syncPhotoControls();await refreshAIStatus();
+  try{const savedDraft=await root.ForjaStorage.get(DRAFT_KEY),draft=savedDraft?.value?JSON.parse(savedDraft.value):null;if(draft?.date===selectedDietDate&&Array.isArray(draft.rows)&&draft.rows.length<=30){if(draft.meal)old(draft.meal);rows=draft.rows;el('diet-simple-text').value=String(draft.text||'').slice(0,4000);render();notify('Rascunho da refeição recuperado neste aparelho. Confira antes de salvar.');}}catch{}
  }
  async function activateAI(){
   const configured=await root.ForjaStorage.get('strava-service-url');let currentService='';try{if(configured)currentService=root.ForjaStrava.validateServiceUrl(configured.value);}catch{}

@@ -93,7 +93,7 @@
   buttons();message(!service?'Conexão pendente: configure o serviço na aba Mais.':session?'Conexão salva. Verificando Strava…':'Verificando configuração do serviço…');
   if(service){try{ready=await health();if(!ready)message('O serviço ainda precisa ser configurado.');else if(!session)message('Serviço configurado. Toque em Conectar ao Strava.');}catch(error){message(error.message);}buttons();}
  }
- root.ForjaStravaUI={init,saveService,connect,sync,disconnect};
+ root.ForjaStravaUI={init,saveService,connect,sync,disconnect,request};
  root.syncStrava=()=>sync(false);root.syncStravaNatacao=()=>sync(false);
  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')sync(pendingAuth);});
  root.addEventListener('online',()=>sync(pendingAuth));

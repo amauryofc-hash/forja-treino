@@ -29,7 +29,7 @@
   const value=await load(),doc=root.document;if(!doc)return value;
   doc.querySelectorAll('[data-home-card]').forEach(node=>{node.hidden=value.hidden.includes(node.dataset.homeCard);});
   const grid=doc.querySelector('.dash-stat-grid');if(grid)for(const id of value.order.filter(card=>STATS.includes(card))){const node=grid.querySelector(`[data-home-card="${id}"]`);if(node)grid.append(node);}
-  const home=doc.getElementById('tab-inicio'),anchor=doc.getElementById('quote-card-extra')||doc.getElementById('quote-card');
+  const home=doc.getElementById('tab-inicio'),anchor=doc.getElementById('home-hero')||doc.getElementById('quote-card-extra')||doc.getElementById('quote-card');
   if(home&&anchor){let previous=anchor;for(const id of value.order.filter(card=>BLOCKS.includes(card))){const node=id===INDICATORS?doc.getElementById('home-small-indicators'):home.querySelector(`[data-home-card="${id}"]`);if(node){previous.after(node);previous=node;}}}
   return value;
  }

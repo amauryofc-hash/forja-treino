@@ -36,7 +36,7 @@
  }
  async function read(file){
   if(!file)return;
-  if(!['image/jpeg','image/png','image/webp'].includes(file.type)){status('Escolha uma foto JPG, PNG ou WebP.');return;}
+  try{file=await root.ForjaImageFiles.prepare(file);}catch(error){status(error.message);el('diet-label-photo').value='';return;}
   const plugin=root.Capacitor?.Plugins?.NutritionLabel;
   if(!plugin){status('A leitura de foto fica disponível no APK Android atualizado. Você pode colar o texto do rótulo abaixo.');return;}
   status('Lendo a tabela nutricional no celular…');

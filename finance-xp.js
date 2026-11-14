@@ -90,12 +90,14 @@
       if(label==='fundos imobiliarios'&&section==='proventos'){subsection='fii';if(row.G)receivables+=moneyCents(row.G);continue;}
       if(label==='acoes'&&section==='proventos'){subsection='stocks';if(row.G)receivables+=moneyCents(row.G);continue;}
       if(label==='fundos imobiliarios'){section='fii';seen.fii=true;continue;}
+      if(label==='previdencia privada'){section='pension';continue;}
       if(label==='renda fixa'){section='cdb';continue;}
       if(label==='acoes'&&!seen.stocks){section='stocks';seen.stocks=true;continue;}
       if(section==='ignore'||section==='proventos')continue;
       if(section==='stocks'&&/^[A-Z0-9]{4}\d{1,2}$/.test(String(row.A||'').trim())&&row.B&&amount(row.G)>0)add(row,String(row.A).trim()==='IVVB11'?'international':'stocks');
       else if(section==='fii'&&/^[A-Z0-9]{4}\d{1,2}$/.test(String(row.A||'').trim())&&row.B&&amount(row.F)>0)add(row,'fii');
       else if(section==='cdb'&&/^CDB\b/i.test(String(row.A||''))&&row.B)add(row,'cdb','balance');
+      else if(section==='pension'&&row.A&&/^R\$\s*[\d.,]+/.test(String(row.D||'')))add({...row,B:row.D,D:row.G||row.D},'pension','balance');
       else if(section==='treasury'&&/^(LFT|LTN|NTNB)/i.test(String(row.A||''))&&row.B)add(row,'treasury','balance');
     }
     if(!seen.stocks||!seen.fii||!seen.treasury||positions.length<4)throw Error('Formato XP não reconhecido; nenhuma posição foi alterada.');

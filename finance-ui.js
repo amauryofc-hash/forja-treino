@@ -47,7 +47,7 @@
         try{
           const response=await fetch('finance-seed.json',{cache:'no-store'});
           if(response.ok){const seed=core.validate(await response.json()),saved=state.positions.find(p=>p.id==='bitcoin'),initial=seed.positions.find(p=>p.id==='bitcoin');
-            if(saved&&saved.quantity==null&&initial?.quantity>0){state=core.validate({...state,positions:state.positions.map(p=>p.id==='bitcoin'?{...p,kind:'market',quantity:initial.quantity}:p),lastQuoteRefresh:''});await persist();}
+            if(saved&&saved.quantity==null&&initial?.quantity>0){state=core.validate({...state,positions:state.positions.map(p=>p.id==='bitcoin'?{...p,kind:'market',quantity:initial.quantity}:p),lastQuoteRefresh:'',lastQuoteAttempt:''});await persist();}
           }
         }catch{} // A posição salva permanece intacta quando o arquivo inicial não está disponível.
       }
@@ -75,14 +75,15 @@
     $('finance-flow-total').textContent=core.money(core.cashFlowSummary(state));
     $('finance-flow-list').innerHTML=(state.cashFlows||[]).slice().sort((a,b)=>b.date.localeCompare(a.date)).map(flow=>`<div class="finance-flow-row"><span>${flow.type==='aporte'?'Aporte':'Retirada'} · ${escape(flow.date.split('-').reverse().join('/'))}${flow.note?` · ${escape(flow.note)}`:''}</span><strong class="finance-sensitive">${core.money(flow.amountCents)}</strong><button type="button" data-finance-flow-remove="${escape(flow.id)}" aria-label="Remover movimentação">Remover</button></div>`).join('')||'<p>Nenhum aporte ou retirada registrado.</p>';
     const eligible=state.positions.filter(p=>core.quoteTicker(p)||core.cryptoTicker(p)).length;
-    $('finance-quotes-status').textContent=(state.lastQuoteRefresh?`Última consulta: ${new Intl.DateTimeFormat('pt-BR',{dateStyle:'short',timeStyle:'short'}).format(new Date(state.lastQuoteRefresh))} · ${eligible} ativos elegíveis. Não atualiza saldos nem quantidades.`:`${eligible} ativos elegíveis. Saldos e quantidades permanecem como foram importados.`)+(lastQuoteFailures.length?` Sem atualização: ${lastQuoteFailures.join('; ')}.`:'');
+    const dateTime=value=>new Intl.DateTimeFormat('pt-BR',{dateStyle:'short',timeStyle:'short'}).format(new Date(value));
+    $('finance-quotes-status').textContent=`${eligible} ativos elegíveis. ${state.lastQuoteAttempt?'Última tentativa: '+dateTime(state.lastQuoteAttempt)+'. ':''}${state.lastQuoteRefresh?'Última cotação recebida: '+dateTime(state.lastQuoteRefresh)+'. ':'Nenhuma cotação recebida ainda. '}Não atualiza saldos nem quantidades.`+(lastQuoteFailures.length?` Sem atualização: ${lastQuoteFailures.join('; ')}.`:'');
     $('finance-source').textContent=has?`Origem: ${state.provenance||'cadastro manual'}. Proventos provisionados aparecem separados. Ativos em custódia remunerada não são somados novamente.`:'Nenhuma posição foi importada neste aparelho.';
     $('finance-fx-rate').value=fx.rate===1&&!has?'':String(fx.rate);
     $('finance-position-count').textContent=has?`${state.positions.length} posições · toque em Editar para corrigir um valor.`:'Nenhuma posição cadastrada.';
     $('finance-allocation').innerHTML=has?Object.entries(summary.byCategory).filter(([,cents])=>cents>0).sort((a,b)=>b[1]-a[1]).map(([category,cents])=>`<div class="finance-allocation-row"><span>${escape(core.CATEGORIES[category])}</span><div class="finance-allocation-track"><i class="finance-allocation-fill" style="width:${Math.max(0,Math.min(100,cents/Math.max(1,summary.totalCents)*100))}%"></i></div><strong>${core.percent(cents,summary.totalCents)}</strong></div>`).join(''):'<p>As classes aparecerão depois da primeira posição.</p>';
     const history=state.snapshots||[],period=core.portfolioPeriod(state,history[0]?.date||'',today());
     $('finance-history-summary').textContent=period?`De ${shortDate(period.first.date)} a ${shortDate(period.last.date)}: patrimônio ${period.changeCents>=0?'+':''}${core.money(period.changeCents)}; aportes menos retiradas ${period.netFlowCents>=0?'+':''}${core.money(period.netFlowCents)}. Diferença restante: ${period.changeExcludingFlowsCents>=0?'+':''}${core.money(period.changeExcludingFlowsCents)}. Não é rentabilidade apurada.`:history.length?'O primeiro registro foi salvo. A comparação aparecerá após um registro em outro dia.':'A evolução será registrada quando você salvar ou atualizar a carteira.';
-    if(history.length>1){const values=history.map(item=>item.totalCents),min=Math.min(...values),max=Math.max(...values),span=max-min||1,path=history.map((item,i)=>`${i?'L':'M'}${(i/Math.max(1,history.length-1)*280).toFixed(1)},${(76-(item.totalCents-min)/span*68).toFixed(1)}`).join(' ');$('finance-history-chart').innerHTML=`<svg viewBox="0 0 280 84" role="img" aria-label="Evolução do patrimônio desde ${escape(shortDate(history[0].date))}"><path d="${path}" fill="none" stroke="#1b8f82" stroke-width="3" stroke-linejoin="round"/></svg><small>${escape(shortDate(history[0].date))} → ${escape(shortDate(history.at(-1).date))}</small>`;}else $('finance-history-chart').innerHTML='';
+    if(history.length>1){const baseline=history[0].netFlowCents,adjusted=history.map(item=>item.totalCents-(item.netFlowCents-baseline)),values=[...history.map(item=>item.totalCents),...adjusted],min=Math.min(...values),max=Math.max(...values),span=max-min||1,path=series=>series.map((value,i)=>`${i?'L':'M'}${(i/Math.max(1,series.length-1)*280).toFixed(1)},${(76-(value-min)/span*68).toFixed(1)}`).join(' ');$('finance-history-chart').innerHTML=`<svg viewBox="0 0 280 84" role="img" aria-label="Patrimônio e patrimônio descontados os aportes líquidos registrados, de ${escape(shortDate(history[0].date))} a ${escape(shortDate(history.at(-1).date))}"><path d="${path(history.map(item=>item.totalCents))}" fill="none" stroke="#1b8f82" stroke-width="3" stroke-linejoin="round"/><path d="${path(adjusted)}" fill="none" stroke="#67a6db" stroke-width="2.5" stroke-dasharray="5 3" stroke-linejoin="round"/></svg><div class="finance-chart-legend"><span><i class="finance-line-total"></i> Patrimônio</span><span><i class="finance-line-adjusted"></i> Sem aportes líquidos registrados</span></div><small>${escape(shortDate(history[0].date))} → ${escape(shortDate(history.at(-1).date))}. A segunda linha é uma comparação aproximada, não rentabilidade.</small>`;}else $('finance-history-chart').innerHTML='';
     const variable=state.positions.filter(p=>['stocks','fii','international','crypto'].includes(p.category));
     const signed=(value,currency)=>`${value>=0?'+':'−'} ${core.money(Math.abs(value),currency)}`;
     const movement=(result,label,currency)=>result?`<span class="finance-variable-movement finance-sensitive" data-direction="${result.deltaCents>0?'up':result.deltaCents<0?'down':'flat'}">${escape(label)}: ${signed(result.deltaCents,currency)} (${result.percent>=0?'+':''}${new Intl.NumberFormat('pt-BR',{maximumFractionDigits:1}).format(result.percent)}%)</span>`:'';
@@ -148,16 +149,20 @@
     const average=$('finance-edit-average').value===''?null:num($('finance-edit-average').value),unit=$('finance-edit-unit').value===''?null:num($('finance-edit-unit').value);
     if(!Number.isFinite(amount)||Math.abs(amount)>1e10||quantity!=null&&(!Number.isFinite(quantity)||quantity<0)||[average,unit].some(v=>v!=null&&(!Number.isFinite(v)||v<0))){$('finance-form-error').textContent='Confira os valores informados.';return;}
     if($('finance-edit-currency').value==='USD'&&state.fx['USD/BRL'].rate===1){$('finance-form-error').textContent='Informe a conversão do dólar em “Importar uma posição” antes de salvar.';return;}
-    const item={id,name:$('finance-edit-name').value.trim(),category:$('finance-edit-category').value,kind:quantity!=null?'market':'balance',currency:$('finance-edit-currency').value,amountCents:Math.round(amount*100),quantity,averagePriceCents:average==null?null:Math.round(average*100),unitPriceCents:unit==null?null:Math.round(unit*100),investedCents:previous?.investedCents??null,source:previous?.source||'manual',quoteAt:'',manualAt:new Date().toISOString()};
+    const averagePriceCents=average==null?null:Math.round(average*100);
+    const costChanged=!!previous&&(quantity!==previous.quantity||averagePriceCents!==previous.averagePriceCents);
+    const investedCents=costChanged?(quantity!=null&&averagePriceCents!=null?Math.round(quantity*averagePriceCents):null):(previous?.investedCents??null);
+    const item={id,name:$('finance-edit-name').value.trim(),category:$('finance-edit-category').value,kind:quantity!=null?'market':'balance',currency:$('finance-edit-currency').value,amountCents:Math.round(amount*100),quantity,averagePriceCents,unitPriceCents:unit==null?null:Math.round(unit*100),investedCents,source:previous?.source||'manual',quoteAt:'',manualAt:new Date().toISOString()};
     const before=state;
     try{
-      const candidate={...state,positions:previous?state.positions.map(p=>p.id===id?item:p):[...state.positions,item],asOf:state.asOf||new Date().toISOString(),lastQuoteRefresh:'',lastEdited:new Date().toISOString()};
+      const candidate={...state,positions:previous?state.positions.map(p=>p.id===id?item:p):[...state.positions,item],asOf:state.asOf||new Date().toISOString(),lastQuoteRefresh:'',lastQuoteAttempt:'',lastEdited:new Date().toISOString()};
       state=core.validate(candidate);await persist();$('finance-editor').close();
     }catch(error){state=before;$('finance-form-error').textContent=error.message||'Não foi possível salvar.';}
   }
   async function importFile(event){
     const file=event.target.files?.[0];if(!file)return;
     try{
+      if(file.size>10*1024*1024)throw Error('Arquivo grande demais (limite de 10 MB).');
       const incoming=core.validate(JSON.parse(await file.text()));
       if(state.positions.length&&!confirm(`Substituir as ${state.positions.length} posições atuais pelas ${incoming.positions.length} posições do arquivo?`))return;
       const before=state;state=core.validate({...incoming,cashFlows:incoming.cashFlows.length?incoming.cashFlows:state.cashFlows,assetEvents:incoming.assetEvents.length?incoming.assetEvents:state.assetEvents,watchlist:incoming.watchlist.length?incoming.watchlist:state.watchlist,watchAlerts:Object.keys(incoming.watchAlerts).length?incoming.watchAlerts:state.watchAlerts,provents:incoming.provents.length?incoming.provents:state.provents});
@@ -168,6 +173,7 @@
   async function importXpFile(event){
     const file=event.target.files?.[0];if(!file)return;
     try{
+      if(file.size>10*1024*1024)throw Error('Planilha grande demais (limite de 10 MB).');
       const parsed=await root.ForjaFinanceXp.parse(await file.arrayBuffer());
       const next=core.mergeXp(state,parsed),preview=core.previewXp(state,next);
       pendingXp=next;
@@ -187,6 +193,7 @@
   async function importNoteFile(event){
     const file=event.target.files?.[0];if(!file)return;
     try{
+      if(file.size>20*1024*1024)throw Error('PDF grande demais (limite de 20 MB).');
       const parsed=await root.ForjaFinanceNote.parse(await file.arrayBuffer());
       const next=core.applyXpNote(state,parsed),applied=parsed.date>String(state.asOf||'').slice(0,10);
       const preview=core.previewXp(state,next);
@@ -289,7 +296,7 @@
     if(!eligible.length){$('finance-quotes-status').textContent='Nenhum ativo com código e quantidade para consultar.';return;}
     refreshing=true;$('finance-quotes-refresh').disabled=true;
     const targetState=state;
-    const priorPositions=state.positions,priorRefresh=state.lastQuoteRefresh;
+    const priorPositions=state.positions,priorRefresh=state.lastQuoteRefresh,priorAttempt=state.lastQuoteAttempt;
     let success=0,failed=0;const failures=[];
     try{
       let cursor=0;
@@ -312,9 +319,9 @@
       }));
       if(state!==targetState){$('finance-quotes-status').textContent='A carteira mudou durante a consulta. Atualize novamente para usar a nova posição.';return;}
       lastQuoteFailures=failures;
-      state.lastQuoteRefresh=new Date().toISOString();await persist();
+      const checkedAt=new Date().toISOString();state.lastQuoteAttempt=checkedAt;if(success)state.lastQuoteRefresh=checkedAt;await persist();
       $('finance-quotes-status').textContent=`${success} cotação(ões) atualizada(s); ${failed} sem atualização.${failures.length?' Falharam: '+failures.join('; ')+'.':''} Valores anteriores foram mantidos. Fonte: brapi, com possível atraso.`;
-    }catch(error){if(state===targetState){state.positions=priorPositions;state.lastQuoteRefresh=priorRefresh;render();}$('finance-quotes-status').textContent='Não foi possível salvar as cotações. Tente novamente.';console.error(error);}
+    }catch(error){if(state===targetState){state.positions=priorPositions;state.lastQuoteRefresh=priorRefresh;state.lastQuoteAttempt=priorAttempt;render();}$('finance-quotes-status').textContent='Não foi possível salvar as cotações. Tente novamente.';console.error(error);}
     finally{refreshing=false;$('finance-quotes-refresh').disabled=false;}
   }
   async function saveBtcPurchase(event){

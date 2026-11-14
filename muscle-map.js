@@ -60,20 +60,21 @@
   return equivalent?Math.min(2.3,1+Math.log2(1+equivalent)*.25):1;
  }
  function scoreDay({corrida=[],natacao=[],crossfit=[],academia=[]}={}){
-  const scores=blank(),sources={corrida:0,natacao:0,crossfit:0,academia:0};let unknownCrossfit=0,unknownCrossfitMovements=0,crossfitMovements=0;
-  for(const row of corrida){if(!row)continue;sources.corrida++;add(scores,run);}
-  for(const row of natacao){if(!row)continue;sources.natacao++;add(scores,swim);}
+  const scores=blank(),sources={corrida:0,natacao:0,crossfit:0,academia:0},contributors={};let unknownCrossfit=0,unknownCrossfitMovements=0,crossfitMovements=0;
+  const record=(weights,sport,label)=>{add(scores,weights);for(const [muscle,value] of Object.entries(weights)){if(value<=0)continue;(contributors[muscle]??=[]).push({sport,label,weight:value});}};
+  for(const row of corrida){if(!row)continue;sources.corrida++;record(run,'Corrida','Corrida');}
+  for(const row of natacao){if(!row)continue;sources.natacao++;record(swim,'Natação','Natação');}
   for(const row of crossfit){if(!completedCrossfit?.completed(row))continue;sources.crossfit++;let recognized=false;
-   for(const exercise of row.exercicios||[]){const name=String(exercise?.nome_realizado||exercise?.nome||'').trim();if(!name)continue;crossfitMovements++;const weights=movementWeights(name);if(weights){recognized=true;const dose=movementDose(exercise,row);if(dose)add(scores,Object.fromEntries(Object.entries(weights).map(([muscle,weight])=>[muscle,weight*dose])));}else unknownCrossfitMovements++;}
+   for(const exercise of row.exercicios||[]){const name=String(exercise?.nome_realizado||exercise?.nome||'').trim();if(!name)continue;crossfitMovements++;const weights=movementWeights(name);if(weights){recognized=true;const dose=movementDose(exercise,row);if(dose)record(Object.fromEntries(Object.entries(weights).map(([muscle,weight])=>[muscle,weight*dose])),'CrossFit',name);}else unknownCrossfitMovements++;}
    if(!recognized)unknownCrossfit++;
   }
   for(const session of academia){if(!session)continue;sources.academia++;
    for(const entry of session.entries||[]){const key=gymMuscle(entry);if(!key)continue;
     const work=(entry.sets||[]).filter(set=>set.type!=='aquecimento'&&Number(set.reps)>0).length;
-    if(work)scores[key]+=Math.min(3,work)*.7;
+    if(work)record({[key]:Math.min(3,work)*.7},'Academia',entry.exercise||'Exercício');
    }
   }
-  return {scores,sources,unknownCrossfit,unknownCrossfitMovements,crossfitMovements};
+  return {scores,sources,contributors,unknownCrossfit,unknownCrossfitMovements,crossfitMovements};
  }
  function colorForScore(score,max=3){if(!score)return '#69707a';const ratio=Math.min(1,score/Math.max(max,.01));return ratio<.4?'#f2c94c':ratio<.75?'#f17842':'#ef334e';}
  const silhouette='<path class="anatomy-outline" d="M83 72 Q72 75 61 83 Q54 87 51 101 L40 145 L30 191 Q27 203 31 212 L38 211 L48 186 L62 141 L66 126 L70 177 Q70 191 73 205 L76 231 Q71 253 73 278 L75 326 L78 376 Q79 384 87 385 L94 383 L97 322 L100 258 L103 322 L106 383 L113 385 Q121 384 122 376 L125 326 L127 278 Q129 253 124 231 L127 205 Q130 191 130 177 L134 126 L138 141 L152 186 L162 211 L169 212 Q173 203 170 191 L160 145 L149 101 Q146 87 139 83 Q128 75 117 72 L108 68 L92 68 Z" fill="#383c43" stroke="#8a9098" stroke-width="1.8"/><path d="M90 69 L89 58 Q78 49 79 31 Q80 10 100 8 Q120 10 121 31 Q122 49 111 58 L110 69" fill="#555a60" stroke="#8a9098" stroke-width="1.8"/><path d="M83 72 Q100 82 117 72" fill="none" stroke="#a6aab0" stroke-width="1.2"/>';
@@ -113,24 +114,27 @@
    const outline=data.outline.map(part=>'<path d="'+part.d+'"'+(part.side==='LEFT'?' transform="translate(1024 0) scale(-1 1)"':'')+'/>').join('');
    const shapes=data.muscles.map(part=>{
     const key=anatomyGroups[part.group],color=colorForScore(scores[key]||0,max),title=anatomyNames[part.group]||part.group;
-    const path='<path d="'+part.d+'" fill="'+color+'" fill-opacity="'+(scores[key]?'.74':'.43')+'" stroke="#282c32" stroke-opacity=".4" stroke-width="1.7" data-muscle="'+(key||'outro')+'" data-region="'+part.group+'"><title>'+title+'</title></path>';
+    const path='<path d="'+part.d+'" fill="'+color+'" fill-opacity="'+(scores[key]?'.74':'.43')+'" stroke="#282c32" stroke-opacity=".4" stroke-width="1.7" data-muscle="'+(key||'outro')+'" data-region="'+part.group+'" role="button" tabindex="0" aria-label="Ver exercícios: '+title+'"><title>'+title+'</title></path>';
     return '<g'+(part.side==='LEFT'?' transform="translate(1024 0) scale(-1 1)"':'')+'>'+path+'</g>';
    }).join('');
    return '<svg viewBox="0 0 1024 1536" role="img" aria-label="Corpo de '+(view==='front'?'frente':'costas')+' com regiões musculares destacadas"><defs><clipPath id="'+id+'">'+outline+'</clipPath></defs><g clip-path="url(#'+id+')"><image href="assets/muscle-'+view+'.webp" x="0" y="0" width="1024" height="1536" preserveAspectRatio="none" style="filter:grayscale(1) brightness(.78)"/></g>'+shapes+'</svg>';
   }
-  const shapes=(view==='front'?front:back).map(([key,d])=>'<path d="'+d+'" fill="'+colorForScore(scores[key],max)+'" stroke="#242931" stroke-width="1.25" stroke-linejoin="round" data-muscle="'+key+'"><title>'+names[key]+'</title></path>').join('');return '<svg viewBox="20 0 160 395" role="img" aria-label="Corpo de '+(view==='front'?'frente':'costas')+' com grupos musculares destacados">'+silhouette+shapes+fibers+'<path class="anatomy-landmarks" d="'+landmarks[view]+'" fill="none" stroke="#ebe8e2" stroke-opacity=".38" stroke-width=".8" stroke-linecap="round"/></svg>';
+  const shapes=(view==='front'?front:back).map(([key,d])=>'<path d="'+d+'" fill="'+colorForScore(scores[key],max)+'" stroke="#242931" stroke-width="1.25" stroke-linejoin="round" data-muscle="'+key+'" role="button" tabindex="0" aria-label="Ver exercícios: '+names[key]+'"><title>'+names[key]+'</title></path>').join('');return '<svg viewBox="20 0 160 395" role="img" aria-label="Corpo de '+(view==='front'?'frente':'costas')+' com grupos musculares destacados">'+silhouette+shapes+fibers+'<path class="anatomy-landmarks" d="'+landmarks[view]+'" fill="none" stroke="#ebe8e2" stroke-opacity=".38" stroke-width=".8" stroke-linecap="round"/></svg>';
  }
  function html(result){const scores=result.scores,max=Math.max(...Object.values(scores),0),top=Object.entries(scores).filter(([,value])=>value>0).sort((a,b)=>b[1]-a[1]).slice(0,4).map(([key])=>names[key]);
-  return '<div class="muscle-map-views"><figure><figcaption>Frente</figcaption>'+svg('front',scores,max)+'</figure><figure><figcaption>Costas</figcaption>'+svg('back',scores,max)+'</figure></div><div class="muscle-map-legend"><span><i class="idle"></i> Sem indicação</span><span><i class="medium"></i> Participação</span><span><i class="high"></i> Maior destaque</span></div><p class="calc-formula-note">'+(top.length?'Destaques: '+top.join(' · '):'Sem treino detalhado neste dia.')+(result.crossfitMovements?' · CrossFit: '+(result.crossfitMovements-result.unknownCrossfitMovements)+' de '+result.crossfitMovements+' movimentos reconhecidos.':'')+(result.unknownCrossfitMovements?' · '+result.unknownCrossfitMovements+' movimento(s) de CrossFit sem grupo identificado.':'')+(result.unknownCrossfit?' · '+result.unknownCrossfit+' treino(s) de CrossFit sem movimentos identificados.':'')+' Estimativa baseada nos movimentos e no volume registrado; não mede a ativação muscular real.</p>';
+  return '<div class="muscle-map-views"><figure><figcaption>Frente</figcaption>'+svg('front',scores,max)+'</figure><figure><figcaption>Costas</figcaption>'+svg('back',scores,max)+'</figure></div><p class="calc-formula-note">Toque em um músculo para ver quais exercícios contribuíram no dia.</p><div class="muscle-map-selection" role="status" aria-live="polite">Selecione uma região do corpo.</div><div class="muscle-map-legend"><span><i class="idle"></i> Sem indicação</span><span><i class="medium"></i> Participação</span><span><i class="high"></i> Maior destaque</span></div><p class="calc-formula-note">'+(top.length?'Destaques: '+top.join(' · '):'Sem treino detalhado neste dia.')+(result.crossfitMovements?' · CrossFit: '+(result.crossfitMovements-result.unknownCrossfitMovements)+' de '+result.crossfitMovements+' movimentos reconhecidos.':'')+(result.unknownCrossfitMovements?' · '+result.unknownCrossfitMovements+' movimento(s) de CrossFit sem grupo identificado.':'')+(result.unknownCrossfit?' · '+result.unknownCrossfit+' treino(s) de CrossFit sem movimentos identificados.':'')+' Estimativa baseada nos movimentos e no volume registrado; não mede a ativação muscular real.</p>';
  }
+ function contributorsFor(result,muscle){const grouped=new Map();for(const row of result?.contributors?.[muscle]||[]){const key=row.sport+'|'+row.label;const item=grouped.get(key)||{sport:row.sport,label:row.label,weight:0};item.weight+=row.weight;grouped.set(key,item);}return [...grouped.values()].sort((a,b)=>b.weight-a.weight);}
+ function showMuscle(target,result,muscle){const panel=target.querySelector('.muscle-map-selection');if(!panel)return;panel.replaceChildren();const heading=root.document.createElement('strong');heading.textContent=names[muscle]||'Região muscular';panel.append(heading);const rows=contributorsFor(result,muscle);if(!rows.length){const p=root.document.createElement('p');p.textContent='Nenhum exercício registrado para esta região no dia selecionado.';panel.append(p);return;}const list=root.document.createElement('ul');for(const row of rows){const item=root.document.createElement('li');item.textContent=`${row.sport} · ${row.label}`;list.append(item);}panel.append(list);}
  function exampleHtml(){return '<p class="calc-formula-note"><strong>Exemplo visual — Dados fictícios.</strong> Toque em um dia do calendário para voltar aos seus dados.</p>'+html(scoreDay({corrida:[{}],natacao:[{}],crossfit:[{duracao_s:1200,exercicios:[{nome:'Strict Pull Up'},{nome:'Front Squat'}]}]}));}
- function showExample(){const target=root.document?.getElementById('progress-muscle-map');if(!target)return;requestId++;target.innerHTML=exampleHtml();}
- let requestId=0;
+ function showExample(){const target=root.document?.getElementById('progress-muscle-map');if(!target)return;requestId++;currentResult=scoreDay({corrida:[{}],natacao:[{}],crossfit:[{duracao_s:1200,exercicios:[{nome:'Strict Pull Up'},{nome:'Front Squat'}]}]});target.innerHTML='<p class="calc-formula-note"><strong>Exemplo visual — Dados fictícios.</strong> Toque em um dia do calendário para voltar aos seus dados.</p>'+html(currentResult);bindSelection(target);}
+ let requestId=0,currentResult=null;
+ function bindSelection(target){if(target.dataset.muscleSelectionReady)return;const choose=event=>{const path=event.target.closest?.('[data-muscle]');if(!path||!target.contains(path))return;showMuscle(target,currentResult,path.dataset.muscle);};target.addEventListener('click',choose);target.addEventListener('keydown',event=>{if(event.key==='Enter'||event.key===' '){if(event.target.closest?.('[data-muscle]')){event.preventDefault();choose(event);}}});target.dataset.muscleSelectionReady='1';}
  async function render(date){const target=root.document?.getElementById('progress-muscle-map');if(!target)return;const id=++requestId;target.textContent='Carregando mapa muscular...';
   try{const db=root.ForjaDB||(root.claude?await root.claude.use('db'):null);
    const entries=await Promise.all([...[['corrida','corridas'],['natacao','natacao'],['crossfit','crossfit']].map(async([sport,key])=>{try{const snap=await db?.collection(key).get();return [sport,snap?.docs.map(doc=>doc.data()).filter(row=>row.data===date)||[]];}catch{return [sport,[]];}}), (async()=>{try{const row=await(root.ForjaStorage||root.storage)?.get('gym-sessions-v1');return ['academia',(row?.value?JSON.parse(row.value):[]).filter(session=>session.date===date)];}catch{return ['academia',[]];}})()]);
-   if(id!==requestId)return;target.innerHTML=html(scoreDay(Object.fromEntries(entries)));
+   if(id!==requestId)return;currentResult=scoreDay(Object.fromEntries(entries));target.innerHTML=html(currentResult);bindSelection(target);
   }catch{if(id===requestId)target.textContent='Não foi possível carregar o mapa muscular agora.';}
  }
- return {scoreDay,movementWeights,movementDose,colorForScore,html,exampleHtml,showExample,render};
+ return {scoreDay,movementWeights,movementDose,contributorsFor,colorForScore,html,exampleHtml,showExample,render};
 });

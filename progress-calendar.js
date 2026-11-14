@@ -6,27 +6,29 @@
  const completedCrossfit=root.ForjaCrossfitStatus||(typeof module==='object'&&module.exports?require('./crossfit-status.js'):null);
  const monthDates=(year,month)=>{const first=new Date(year,month,1,12),offset=(first.getDay()+6)%7,last=new Date(year,month+1,0,12).getDate();return [...Array(offset).fill(null),...Array.from({length:last},(_,i)=>dateKey(new Date(year,month,i+1,12)))];};
  const blank=()=>({water:0,weight:null,meals:0,kcal:0,closed:false,creatine:false,steps:null,activeKcal:null,totalKcal:null,training:{corrida:0,natacao:0,crossfit:0,academia:0},sources:new Set()});
- function buildIndex({body=[],diet=[],closed={},creatine=[],gym=[],health=[],sports={}}={}){
+ function buildIndex({body=[],diet=[],closed={},untracked={},creatine=[],gym=[],health=[],sports={}}={}){
   const index=new Map(),day=date=>{if(!validDate(date))return null;if(!index.has(date))index.set(date,blank());return index.get(date);};
   for(const row of body){const d=day(row?.date);if(!d)continue;if(row.type==='water'){const ml=row.ml!=null?Number(row.ml):Number(String(row.value||'').replace(',','.'))*1000;d.water+=Number.isFinite(ml)?ml:0;}else if(row.type==='weight'){const value=Number(String(row.value||'').replace(',','.'));if(Number.isFinite(value))d.weight=value;}}
+  for(const date of new Set([...index.keys(),...(root.ForjaGarminWater?.days?.()||[]).map(row=>row.date)])){const d=day(date);if(d)d.water=root.ForjaGarminWater?.total?.(date,body)??d.water;}
   for(const row of diet){const d=day(row?.date);if(d){d.meals++;d.kcal+=Number(row.kcal)||0;}}
   for(const date of Object.keys(closed||{})){const d=day(date);if(d)d.closed=true;}
+  for(const date of Object.keys(untracked||{})){const d=day(date);if(d){d.untracked=true;d.closed=false;}}
   for(const date of creatine){const d=day(date);if(d)d.creatine=true;}
   for(const row of gym){const d=day(row?.date);if(d){d.training.academia++;d.sources.add('Academia · lançamento no Forja');}}
   for(const row of health){const d=day(row?.date);if(!d||row.sourcePackage!=='com.garmin.android.apps.connectmobile')continue;for(const key of ['steps','activeKcal','totalKcal'])if(row[key]!=null&&Number.isFinite(Number(row[key])))d[key]=Number(row[key]);if([d.steps,d.activeKcal,d.totalKcal].some(value=>value!=null))d.sources.add('Garmin Connect');}
   for(const [sport,rows] of Object.entries(sports)){if(!['corrida','natacao','crossfit'].includes(sport))continue;for(const row of rows){if(sport==='crossfit'&&!completedCrossfit?.completed(row))continue;const d=day(row?.data);if(!d)continue;d.training[sport]++;const source=String(row.origem||'manual');d.sources.add(/strava/i.test(source)?'Strava':/garmin/i.test(source)?'Garmin':/print/i.test(source)?'Foto do treino':'Lançamento manual');}}
   return index;
  }
- async function loadIndex(){const storage=root.ForjaStorage||root.storage,keys=['body-log','diet-log','diet-closed-days','creatine-days-v1','gym-sessions-v1','health-connect-daily'],defaults=[[],[],{},[],[],[]];const values=await Promise.all(keys.map(async(key,i)=>{try{const row=await storage.get(key);return row?.value?JSON.parse(row.value):defaults[i];}catch{return defaults[i];}}));const sports={};for(const [name,key] of [['corrida','corridas'],['natacao','natacao'],['crossfit','crossfit']]){try{const result=await root.ForjaDB?.collection(key)?.get();sports[name]=result?.docs?.map(doc=>doc.data())||[];}catch{sports[name]=[];}}return buildIndex({body:values[0],diet:values[1],closed:values[2],creatine:values[3],gym:values[4],health:values[5],sports});}
+ async function loadIndex(){const storage=root.ForjaStorage||root.storage,keys=['body-log','diet-log','diet-closed-days','diet-untracked-days','creatine-days-v1','gym-sessions-v1','health-connect-daily'],defaults=[[],[],{},{},[],[],[]];const values=await Promise.all(keys.map(async(key,i)=>{try{const row=await storage.get(key);return row?.value?JSON.parse(row.value):defaults[i];}catch{return defaults[i];}}));const sports={};for(const [name,key] of [['corrida','corridas'],['natacao','natacao'],['crossfit','crossfit']]){try{const result=await root.ForjaDB?.collection(key)?.get();sports[name]=result?.docs?.map(doc=>doc.data())||[];}catch{sports[name]=[];}}return buildIndex({body:values[0],diet:values[1],closed:values[2],untracked:values[3],creatine:values[4],gym:values[5],health:values[6],sports});}
  let selected=today(),month=new Date().getMonth(),year=new Date().getFullYear();
- function dayStatus(d=blank(),waterGoal=2100){return {water:d.water<=0?'sem registro':d.water>=waterGoal?'meta cumprida':'em andamento',diet:d.closed?'concluída':d.meals?'em andamento':'sem registro'};}
+ function dayStatus(d=blank(),waterGoal=2100){return {water:d.water<=0?'sem registro':d.water>=waterGoal?'meta cumprida':'em andamento',diet:d.untracked?'não contabilizada':d.closed?'concluída':d.meals?'em andamento':'sem registro'};}
  async function addStreakReview(detail,date){
   if(typeof root.getStreakDayStatus!=='function')return;
   const doc=root.document,status=await root.getStreakDayStatus(date),box=doc.createElement('section');box.className='progress-streak-review';
   const heading=doc.createElement('h4');heading.textContent=status.complete?'✓ Sequência mantida neste dia':'Para manter a sequência';box.append(heading);
   const criteria=[
    [status.waterOk,`Água: ${Math.round(status.water)} / ${Math.round(status.waterGoal)} ml`],
-   [status.foodOk,`Dieta: ${status.closed?'concluída':'não concluída'} · ${status.meals} refeição(ões) · saldo ${Number.isFinite(status.balance)?Math.round(status.balance):'indisponível'} kcal (${status.balanceSource})`],
+   [status.foodOk,`Dieta: ${status.untracked?'não contabilizada':status.closed?'concluída':'não concluída'} · ${status.meals} refeição(ões) · saldo ${Number.isFinite(status.balance)?Math.round(status.balance):'indisponível'} kcal (${status.balanceSource})`],
    [status.trainingOk,status.trained?'Treino registrado':status.restPlanned?'Descanso planejado':'Treino ou descanso planejado pendente'],
    [status.bibleOk,status.bibleRequired?'Leitura bíblica registrada':'Leitura bíblica não era exigida nesta data']
   ];

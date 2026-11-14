@@ -40,7 +40,7 @@ restoreBackupData=async function(parsed){
 const photoButton=document.getElementById('diet-photo-label');if(photoButton)photoButton.style.display='none';
 document.getElementById('diet-input').placeholder='Alimentos/produto: arroz e frango\nCalorias: 450 kcal\nProteínas: 32 g\nCarboidratos: 48 g\nGorduras: 12 g';
 const estimateButton=document.querySelector('[onclick="estimateDietCalories()"]');estimateButton.textContent='📋 Colar estimativa do chat / revisar valores';
-const intro=document.getElementById('diet-meal-type-grid').parentElement.querySelector('.calc-formula-note');intro.textContent='Estime pelos alimentos e quantidades, leia um rótulo por OCR ou cole os dados do seu chat. Confira e salve na refeição selecionada.';
+const intro=document.getElementById('diet-add-card')?.querySelector(':scope > .calc-formula-note');if(intro)intro.textContent='Adicione alimentos, foto ou texto. Confira o resultado antes de salvar.';
 document.getElementById('gdrive-card').style.display='none';
 for(const id of ['corrida-print-file','natacao-print-file']){const label=document.querySelector('label[for="'+id+'"]');if(label)label.style.display='none';}
 for(const id of ['notif-btn','gym-notif-btn']){const button=document.getElementById(id);button.textContent='Lembretes em segundo plano ainda não disponíveis';button.disabled=true;}

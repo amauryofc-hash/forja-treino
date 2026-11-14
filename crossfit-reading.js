@@ -24,6 +24,7 @@
  );
  const aliases=new Map();groups.forEach(g=>g.forEach(n=>aliases.set(fold(n),g[0])));aliases.set('handstand push ups','Handstand Push Up');aliases.set('devil presses','Devil Press');
  [['Chest to Bar','chest to bar pull up','chest to bar pull ups','c2b pull ups'],['Air Squat','agachamento livre','agachamentos livres','agachamento sem carga'],['Front Squat','agachamento frontal'],['Back Squat','agachamento costas'],['Overhead Squat','agachamento acima da cabeca'],['Row','remo indoor','remo ergometrico'],['SkiErg','ski erg','ski ergometer'],['Air Bike','assault air bike','bicicleta de ar'],['Double Under','saltos duplos'],['Wall Ball','arremesso de bola na parede'],['Deadlift','terra'],['Pull Up','barra fixa'],['Push Up','flexao de bracos'],['Sit Up','abdominal'],['Box Jump','salto na caixa']].forEach(([canonical,...names])=>names.forEach(name=>aliases.set(fold(name),canonical)));
+ [['Hang Clean','hang cleans','clean pendurado'],['Sit Up','abmat sit up','abmat sit ups','abmat sit-ups'],['Box Jump Over','box jump overs','box jump over the box']].forEach(([canonical,...names])=>names.forEach(name=>aliases.set(fold(name),canonical)));
  for(const [key,value] of [...aliases])if(key.length>3&&!key.endsWith('s'))aliases.set(key+'s',value);
  root.crossfitMovementNames=[...new Set(groups.map(group=>group[0]))].sort((a,b)=>a.localeCompare(b));
  const movementDetails=[
@@ -45,7 +46,7 @@
  root.crossfitMovementGuide=name=>guidanceRules.find(rule=>rule.pattern.test(name||''))||null;
  const equipmentFor=name=>/\b(?:dumbbell|db)\b/i.test(name)?'halter':/\b(?:kettlebell|kb)\b/i.test(name)?'kettlebell':/\b(?:row|ski(?:erg)?|bike(?:erg)?)\b/i.test(name)?'máquina':/\bsandbag\b/i.test(name)?'sandbag':/\bring\b/i.test(name)?'argolas':/\b(?:clean|snatch|deadlift|jerk|press|front squat|back squat)\b/i.test(name)?'barra ou implemento prescrito':'conforme o WOD';
  const measureFor=ex=>ex.tempo_s!=null?'tempo':ex.distancia_m!=null?'distância':ex.calorias_maquina!=null?'calorias da máquina':ex.reps_maximas?'repetições máximas':'repetições';
- const formatLine=/^(?:WOD\s+\d+\s*['"]|\d+\s*[x×]\s*EMOM\b|HEAVY\s*DAY|AMRAP|EMOM|E\d+MOM|EVERY\b|FOR\s*TIME|TABATA|CHIPPER|RFT|STRENGTH|TIME\s*CAP|BUY[- ]?IN|CASH[- ]?OUT|THEN\b|REST\b|\d+\s+Rounds?\b|\d+(?:\s*-\s*\d+){1,8}\b)/i;
+ const formatLine=/^(?:WOD\s+(?:\d+\s*['"]|CHIPPER\b)|\d+\s*[x×]\s*EMOM\b|HEAVY\s*DAY|AMRAP|EMOM|E\d+MOM|EVERY\b|FOR\s*TIME|TABATA|CHIPPER|RFT|STRENG?HT|STRENGTH|TIME\s*CAP|BUY[- ]?IN|CASH[- ]?OUT|THEN\b|REST\b|\d+\s+Rounds?\b|\d+(?:\s*-\s*\d+){1,8}\b)/i;
  root.parseCrossfitWod=function(raw){
   raw=String(raw||'');const lines=raw.replace(/[’′]/g,"'").replace(/[“”″]/g,'"').replace(/([0-9])\s*['"]{2,}/g,'$1"').split(/\r?\n/).map(s=>s.trim());
   const result={data:null,wod_formato:null,exercicios:[],observacoes:'',texto_original:raw};
@@ -60,18 +61,18 @@
    if(/^(COOL\s*DOWN|Fazer\s*check|Ações|TECNOFIT)/i.test(line))break;if(!line)continue;
    const scheme=line.match(/^(\d+(?:\s*-\s*\d+){1,8})\.\s+([A-Za-z].+)$/);
    if(scheme){const name=scheme[2].trim(),canonical=aliases.get(fold(name));formats.push(scheme[1]);addExercise({nome:canonical||name,reps_esquema:scheme[1].replace(/\s/g,''),texto_original:line,revisar:!canonical});continue;}
-   if(formatLine.test(line)){formats.push(line);const block=line.match(/^(\d+)\s+Rounds?\b/i)||line.match(/\bFOR\s+(?:TIME\s+)?(\d+)\s+Rounds?\b/i)||line.match(/^(\d+)\s*[x×]\s*EMOM\b/i);if(block)currentRounds=Number(block[1]);else if(/^(?:BUY[- ]?IN|CASH[- ]?OUT|THEN\b|REST\b)/i.test(line))currentRounds=null;
+   if(formatLine.test(line)){formats.push(line);const block=line.match(/^(\d+)\s+Rounds?\b/i)||line.match(/\bFOR\s+(?:TIME\s+)?(\d+)\s+Rounds?\b/i)||line.match(/^(\d+)\s*[x×]\s*EMOM\b/i)||line.match(/^EMOM\b.*?\b(?:por|for)\s+(\d+)\s+Rounds?\b/i);if(block)currentRounds=Number(block[1]);else if(/^(?:BUY[- ]?IN|CASH[- ]?OUT|THEN\b|REST\b|WOD\s+CHIPPER)/i.test(line))currentRounds=null;
     if(/^TIME\s*CAP/i.test(line)){if(activeBlock)activeBlock.time_cap=line;}
     else if(/^(?:REST|DESCANSO)\b/i.test(line))beginBlock(line,'descanso');
-    else if(/^(?:HEAVY\s*DAY|STRENGTH|AMRAP|EMOM|E\d+MOM|EVERY\b|FOR\s*TIME|TABATA|CHIPPER|RFT|\d+\s*[x×]\s*EMOM|\d+\s+Rounds?|BUY[- ]?IN|CASH[- ]?OUT|THEN\b)/i.test(line))beginBlock(line,'treino');
+    else if(/^(?:HEAVY\s*DAY|STRENG?HT|STRENGTH|WOD\s+CHIPPER|AMRAP|EMOM|E\d+MOM|EVERY\b|FOR\s*TIME|TABATA|CHIPPER|RFT|\d+\s*[x×]\s*EMOM|\d+\s+Rounds?|BUY[- ]?IN|CASH[- ]?OUT|THEN\b)/i.test(line))beginBlock(line,'treino');
     continue;}
    const alternateCalories=line.match(/^(\d+(?:[.,]\d+)?)\s*\/\s*(\d+(?:[.,]\d+)?)\s+cal(?:ories|orias)?\b(?:\s+(.+))?$/i);
    if(alternateCalories){const equipment=alternateCalories[3]?.trim(),canonical=equipment&&aliases.get(fold(equipment));const ex={nome:canonical||equipment||'Calorias na máquina',calorias_maquina:Number(alternateCalories[1].replace(',','.')),calorias_alternativa:Number(alternateCalories[2].replace(',','.')),texto_original:line,revisar:!canonical};if(currentRounds!=null)ex.series_ou_rounds=currentRounds;addExercise(ex);continue;}
    const maxReps=line.match(/^Max\s+(.+)$/i);
-   if(maxReps){let name=maxReps[1].trim(),load=name.match(/\(([\d.,]+)\s*\/\s*([\d.,]+)\s*(kg|lb)\)/i);if(load)name=name.replace(load[0],'').trim();const canonical=aliases.get(fold(name));const ex={nome:canonical||name,reps_maximas:true,texto_original:line,revisar:!canonical};if(currentRounds!=null)ex.series_ou_rounds=currentRounds;if(load){ex.carga_prescrita=Number(load[1].replace(',','.'));ex.carga_scaled=Number(load[2].replace(',','.'));ex.unidade=load[3].toLowerCase();}addExercise(ex);continue;}
+   if(maxReps){let name=maxReps[1].trim(),load=name.match(/\(([\d.,]+)\s*(?:kg|lb)?\s*\/\s*([\d.,]+)\s*(kg|lb)\)/i);if(load)name=name.replace(load[0],'').trim();const canonical=aliases.get(fold(name));const ex={nome:canonical||name,reps_maximas:true,texto_original:line,revisar:!canonical};if(currentRounds!=null)ex.series_ou_rounds=currentRounds;if(load){ex.carga_prescrita=Number(load[1].replace(',','.'));ex.carga_scaled=Number(load[2].replace(',','.'));ex.unidade=load[3].toLowerCase();}addExercise(ex);continue;}
    const match=line.match(/^(\d+(?:[.,]\d+)?)\s*(km|m|minutes?|min|seconds?|seg|sec|s|cal(?:ories|orias)?|''|"|')?\s+(.+)$/i);
-   if(!match){let name=line,load=name.match(/\(([\d.,]+)\s*\/\s*([\d.,]+)\s*(kg|lb)\)/i);if(load)name=name.replace(load[0],'').trim();const canonical=aliases.get(fold(name));if(canonical){const ex={nome:canonical,texto_original:line};if(currentRounds!=null)ex.series_ou_rounds=currentRounds;if(canonical.includes(' / '))ex.revisar=true;if(load){ex.carga_prescrita=Number(load[1].replace(',','.'));ex.carga_scaled=Number(load[2].replace(',','.'));ex.unidade=load[3].toLowerCase();}addExercise(ex);continue;}notes.push('Revisar: '+line);continue;}
-   const n=Number(match[1].replace(',','.')),unit=(match[2]||'reps').toLowerCase();let name=match[3],load=name.match(/\(([\d.,]+)\s*\/\s*([\d.,]+)\s*(kg|lb)\)/i);if(load)name=name.replace(load[0],'').trim();
+   if(!match){let name=line,load=name.match(/\(([\d.,]+)\s*(?:kg|lb)?\s*\/\s*([\d.,]+)\s*(kg|lb)\)/i);if(load)name=name.replace(load[0],'').trim();const canonical=aliases.get(fold(name));if(canonical){const ex={nome:canonical,texto_original:line};if(currentRounds!=null)ex.series_ou_rounds=currentRounds;if(canonical.includes(' / '))ex.revisar=true;if(load){ex.carga_prescrita=Number(load[1].replace(',','.'));ex.carga_scaled=Number(load[2].replace(',','.'));ex.unidade=load[3].toLowerCase();}addExercise(ex);continue;}notes.push('Revisar: '+line);continue;}
+   const n=Number(match[1].replace(',','.')),unit=(match[2]||'reps').toLowerCase();let name=match[3],load=name.match(/\(([\d.,]+)\s*(?:kg|lb)?\s*\/\s*([\d.,]+)\s*(kg|lb)\)/i);if(load)name=name.replace(load[0],'').trim();
    const canonical=aliases.get(fold(name)),ex={nome:canonical||name,texto_original:line};
    if(currentRounds!=null)ex.series_ou_rounds=currentRounds;
    if(!canonical||canonical==='Bike'||canonical.includes(' / '))ex.revisar=true;

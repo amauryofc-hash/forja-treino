@@ -1,12 +1,12 @@
-(function(root,factory){const api=factory(root);if(typeof module==='object'&&module.exports)module.exports=api;root.ForjaHomeHero=api;})(typeof globalThis!=='undefined'?globalThis:this,function(root){
+(function(root,factory){const api=factory(root);if(typeof module==='object'&&module.exports)module.exports=api;root.ForjaHomeHero=api;root.ForjaAppVariant?.resolve?.().then(()=>api.render()).catch(()=>{});})(typeof globalThis!=='undefined'?globalThis:this,function(root){
  'use strict';
- const DEFAULT_NAME='';
+ const DEFAULT_NAME='Atleta';
  let latest={};
  const greeting=hour=>hour<5?'Boa madrugada':hour<12?'Bom dia':hour<18?'Boa tarde':'Boa noite';
  const clamp=value=>Math.max(0,Math.min(100,Math.round(Number(value)||0)));
  const fmt=value=>Math.round(Math.max(0,Number(value)||0)).toLocaleString('pt-BR');
- function name(){try{let saved=root.localStorage?.getItem('forja-display-name');if(!saved&&DEFAULT_NAME){root.localStorage?.setItem('forja-display-name',DEFAULT_NAME);saved=DEFAULT_NAME;}return String(saved||DEFAULT_NAME).trim().slice(0,40);}catch{return DEFAULT_NAME;}}
- function setName(value){try{root.localStorage?.setItem('forja-display-name',String(value||'').trim().slice(0,40));}catch{}render();}
+ function name(){try{const saved=root.localStorage?.getItem('forja-display-name'),variant=root.document?.body?.dataset?.forjaVariant;if(saved&&!(variant==='shared'&&saved===DEFAULT_NAME&&!root.localStorage?.getItem('forja-display-name-user-set')))return String(saved).trim().slice(0,40);return variant==='personal'?DEFAULT_NAME:'';}catch{return '';}}
+ function setName(value){try{root.localStorage?.setItem('forja-display-name',String(value||'').trim().slice(0,40));root.localStorage?.setItem('forja-display-name-user-set','1');}catch{}render();}
  function ring(id,value,label,progress){const node=root.document?.getElementById(id);if(!node)return;node.style.setProperty('--progress',clamp(progress)+'%');node.querySelector('strong').textContent=value;node.querySelector('span').textContent=label;node.setAttribute('aria-label',`${label}: ${value}`);}
  function render(data){if(data)latest=data;data=latest;const doc=root.document;if(!doc?.getElementById('home-hero'))return;const now=new Date(),person=name();doc.getElementById('home-hero-date').textContent=now.toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'long'});doc.getElementById('home-hero-greeting').textContent=greeting(now.getHours())+(person?', '+person:'');
   const water=Math.max(0,Number(data.waterMl)||0),waterGoal=Math.max(0,Number(data.waterGoal)||0),eaten=Math.max(0,Number(data.eaten)||0),foodGoal=Math.max(0,Number(data.foodGoal)||0),trained=!!data.trained;
@@ -19,5 +19,5 @@
  }
  function openSupplements(){const card=root.document?.getElementById('creatine-week-card');if(!card)return;card.hidden=false;card.scrollIntoView?.({behavior:'smooth',block:'center'});root.document?.getElementById('supplements-card')?.classList.add('attention');root.setTimeout?.(()=>root.document?.getElementById('supplements-card')?.classList.remove('attention'),1500);}
  function updateWaterGoal(value){latest={...latest,waterGoal:value};render();}
- return{greeting,render,openSupplements,setName,updateWaterGoal};
+ return{greeting,render,openSupplements,setName,seedName:()=>DEFAULT_NAME,updateWaterGoal};
 });

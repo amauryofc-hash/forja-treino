@@ -40,14 +40,14 @@
   if(parts.length>30)throw Error('Use até 30 alimentos por refeição.');
   return parts.map(part=>{const m=part.match(/(\d+(?:\.\d+)?)\s*(g|gramas?|ml)\b/i),name=part.replace(/\d+(?:\.\d+)?\s*(?:g|gramas?|ml)\b/i,'').replace(/^de\s+/i,'').trim();const known=resolve(name,mine,catalog);return {name,food:known?.food||null,quantity:m?Number(m[1]):known?.quantity??null,unit:m?(m[2].toLowerCase()==='ml'?'ml':'g'):known?.unit||'g',suggested:!m};});
  }
- function fromAI(value,mine,catalog){
+ function fromAI(value,mine,catalog,source='foto'){
   if(!value||!Array.isArray(value.items)||!value.items.length||value.items.length>30)throw Error('A IA não retornou uma lista válida de alimentos.');
   return value.items.map(item=>{
    if(typeof item.name!=='string'||!item.name.trim()||item.name.length>160)throw Error('Nome de alimento inválido.');
    if(typeof item.quantity!=='number'||!Number.isFinite(item.quantity)||item.quantity<=0||item.quantity>10000||!['g','ml'].includes(item.unit))throw Error('A IA não retornou uma quantidade válida.');
    const known=resolve(item.name,mine,catalog),reference=known?.food&&(known.food.unit||'g')===item.unit?known.food:null;
    const nutrients=item.nutrients,valid=nutrients&&['kcal','carbs_g','protein_g','fat_g'].every(key=>typeof nutrients[key]==='number'&&Number.isFinite(nutrients[key])&&nutrients[key]>=0&&nutrients[key]<=(key==='kcal'?900:100));
-   const estimate=valid?{id:'ai-'+Math.random().toString(36).slice(2),name:item.name,unit:item.unit,source:'Estimativa visual por IA — confira antes de salvar',kcal:nutrients.kcal,carbs_g:nutrients.carbs_g,protein_g:nutrients.protein_g,fat_g:nutrients.fat_g}:null;
+   const estimate=valid?{id:'ai-'+Math.random().toString(36).slice(2),name:item.name,unit:item.unit,source:source==='texto'?'Estimativa por IA a partir de texto — confira antes de salvar':'Estimativa visual por IA — confira antes de salvar',kcal:nutrients.kcal,carbs_g:nutrients.carbs_g,protein_g:nutrients.protein_g,fat_g:nutrients.fat_g}:null;
    return {name:item.name,quantity:item.quantity,unit:item.unit,food:estimate||reference,suggested:true};
   });
  }

@@ -4,7 +4,7 @@
   root.ForjaFinanceCore=api;
 })(typeof globalThis!=='undefined'?globalThis:this,function(){
   'use strict';
-  const CATEGORIES={stocks:'Ações',fii:'Fundos imobiliários',international:'Internacional',treasury:'Tesouro Direto',cdb:'CDB',cash:'Caixa e caixinha',crypto:'Criptoativos'};
+  const CATEGORIES={stocks:'Ações',fii:'Fundos imobiliários',international:'Internacional',treasury:'Tesouro Direto',cdb:'CDB',pension:'Previdência privada',cash:'Caixa e caixinha',crypto:'Criptoativos'};
   function validCents(value){return Number.isSafeInteger(value)&&Math.abs(value)<=1e12;}
   function validate(data){
     if(!data||data.format!=='forja-finance-position'||data.version!==1||!Array.isArray(data.positions)||data.positions.length>1000)throw Error('Arquivo de posição inválido.');
@@ -51,7 +51,7 @@
       return {id:item.id.slice(0,80),positionId:String(item.positionId).slice(0,100),name:String(item.name||positions.find(p=>p.id===item.positionId)?.name||'Ativo').slice(0,100),date:item.date,amountCents:item.amountCents,status:item.status};
     });
     if(provents.length>1000||new Set(provents.map(item=>item.id)).size!==provents.length)throw Error('Agenda de proventos inválida.');
-    return {format:'forja-finance-position',version:1,asOf:String(data.asOf||''),lastEdited:String(data.lastEdited||''),lastQuoteRefresh:Number.isFinite(Date.parse(data.lastQuoteRefresh))?String(data.lastQuoteRefresh).slice(0,40):'',fx:{'USD/BRL':{rate:Number.isFinite(rate)&&rate>0?rate:1,asOf:String(data.fx?.['USD/BRL']?.asOf||''),estimated:!!data.fx?.['USD/BRL']?.estimated,source:String(data.fx?.['USD/BRL']?.source||'manual').slice(0,30)}},positions,receivables:{amountCents:validCents(data.receivables?.amountCents)?data.receivables.amountCents:0,currency:'BRL'},cashFlows,cryptoTrades,assetEvents,watchlist,watchAlerts,snapshots,provents,provenance:String(data.provenance||'').slice(0,180)};
+    return {format:'forja-finance-position',version:1,asOf:String(data.asOf||''),lastEdited:String(data.lastEdited||''),lastQuoteRefresh:Number.isFinite(Date.parse(data.lastQuoteRefresh))?String(data.lastQuoteRefresh).slice(0,40):'',lastQuoteAttempt:Number.isFinite(Date.parse(data.lastQuoteAttempt))?String(data.lastQuoteAttempt).slice(0,40):Number.isFinite(Date.parse(data.lastQuoteRefresh))?String(data.lastQuoteRefresh).slice(0,40):'',fx:{'USD/BRL':{rate:Number.isFinite(rate)&&rate>0?rate:1,asOf:String(data.fx?.['USD/BRL']?.asOf||''),estimated:!!data.fx?.['USD/BRL']?.estimated,source:String(data.fx?.['USD/BRL']?.source||'manual').slice(0,30)}},positions,receivables:{amountCents:validCents(data.receivables?.amountCents)?data.receivables.amountCents:0,currency:'BRL'},cashFlows,cryptoTrades,assetEvents,watchlist,watchAlerts,snapshots,provents,provenance:String(data.provenance||'').slice(0,180)};
   }
   function quoteTicker(position){
     if(!position||position.kind!=='market'||position.currency!=='BRL'||!Number.isFinite(position.quantity)||position.quantity<=0||!['stocks','fii','international'].includes(position.category))return null;
@@ -83,7 +83,7 @@
     const quantity=(Math.round(btc.quantity*1e8)+Math.round(satoshis))/1e8;
     const amountCents=btc.unitPriceCents!=null?Math.round(quantity*btc.unitPriceCents):btc.amountCents+trade.amountCents;
     const item={id:`btc-${Date.now()}-${Math.random().toString(36).slice(2,8)}`,date:trade.date,amountCents:trade.amountCents,quantity:Math.round(satoshis)/1e8};
-    return validate({...data,positions:data.positions.map(p=>p.id===btc.id?{...p,quantity,amountCents,quoteAt:'',manualAt:new Date().toISOString()}:p),cryptoTrades:[...(data.cryptoTrades||[]),item],lastQuoteRefresh:'',lastEdited:new Date().toISOString()});
+    return validate({...data,positions:data.positions.map(p=>p.id===btc.id?{...p,quantity,amountCents,quoteAt:'',manualAt:new Date().toISOString()}:p),cryptoTrades:[...(data.cryptoTrades||[]),item],lastQuoteRefresh:'',lastQuoteAttempt:'',lastEdited:new Date().toISOString()});
   }
   function removeBtcPurchase(data,id){
     const btc=data.positions.find(isBitcoinPosition),trade=(data.cryptoTrades||[]).find(t=>t.id===id);
@@ -92,7 +92,7 @@
     if(satoshis<0)throw Error('A posição atual é menor que a compra selecionada. Corrija a quantidade antes de remover.');
     const quantity=satoshis/1e8;
     const amountCents=btc.unitPriceCents!=null?Math.round(quantity*btc.unitPriceCents):Math.max(0,btc.amountCents-trade.amountCents);
-    return validate({...data,positions:data.positions.map(p=>p.id===btc.id?{...p,quantity,amountCents,quoteAt:'',manualAt:new Date().toISOString()}:p),cryptoTrades:data.cryptoTrades.filter(t=>t.id!==id),lastQuoteRefresh:'',lastEdited:new Date().toISOString()});
+    return validate({...data,positions:data.positions.map(p=>p.id===btc.id?{...p,quantity,amountCents,quoteAt:'',manualAt:new Date().toISOString()}:p),cryptoTrades:data.cryptoTrades.filter(t=>t.id!==id),lastQuoteRefresh:'',lastQuoteAttempt:'',lastEdited:new Date().toISOString()});
   }
   function toBrlCents(position,fx){return position.currency==='USD'?Math.round(position.amountCents*fx['USD/BRL'].rate):position.amountCents;}
   function summarize(data){
@@ -113,7 +113,7 @@
     const manual=current.positions.filter(p=>p.source!=='XP');
     if(incoming.some(p=>manual.some(m=>key(m)===key(p))))throw Error('Há um ativo manual com o mesmo nome de um ativo da XP. Revise antes de importar.');
     const assetEvents=(current.assetEvents||[]).map(event=>event.appliedToPosition&&event.date<=String(imported.asOf).slice(0,10)?{...event,settledByImport:true,positionBefore:null,positionAfter:null}:event);
-    return validate({...current,positions:[...incoming,...manual],assetEvents,asOf:imported.asOf,lastEdited:new Date().toISOString(),lastQuoteRefresh:'',receivables:imported.receivables,provenance:imported.provenance});
+    return validate({...current,positions:[...incoming,...manual],assetEvents,asOf:imported.asOf,lastEdited:new Date().toISOString(),lastQuoteRefresh:'',lastQuoteAttempt:'',receivables:imported.receivables,provenance:imported.provenance});
   }
   function previewXp(current,next){
     const before=new Map(current.positions.filter(p=>p.source==='XP').map(p=>[key(p),p]));
@@ -152,7 +152,7 @@
       }
       events.push({id:trade.id,positionId:old?.id||`xp-${trade.category}-${trade.name.toLowerCase()}`,name:trade.name,type:trade.type,date:note.date,quantity:trade.quantity,amountCents:trade.amountCents,note:trade.note||'Nota de negociação XP',appliedToPosition:applyHoldings});
     }
-    return validate({...current,positions,assetEvents:[...(current.assetEvents||[]),...events],lastEdited:new Date().toISOString(),lastQuoteRefresh:applyHoldings?'':current.lastQuoteRefresh});
+    return validate({...current,positions,assetEvents:[...(current.assetEvents||[]),...events],lastEdited:new Date().toISOString(),lastQuoteRefresh:applyHoldings?'':current.lastQuoteRefresh,lastQuoteAttempt:applyHoldings?'':current.lastQuoteAttempt});
   }
   function recordAssetEvent(data,input){
     const position=data.positions.find(item=>item.id===input.positionId);
@@ -176,7 +176,7 @@
       updated={...position,quantity:nextQuantity,averagePriceCents:nextQuantity?average:null,investedCents:nextQuantity&&average!=null?Math.round(nextQuantity*average):null,amountCents:Math.round(nextQuantity*price),manualAt:`${date}T12:00:00-03:00`,quoteAt:'',dayChangePercent:null,dayChangeCents:null};
     }
     const event={id,positionId:position.id,name:position.name,type,date,amountCents,quantity:type==='provento'?null:quantity,note:String(input.note||'').slice(0,120),appliedToPosition:apply,positionBefore:apply?position:null,positionAfter:apply?updated:null};
-    return validate({...data,positions:apply?data.positions.map(item=>item.id===position.id?updated:item):data.positions,assetEvents:[...(data.assetEvents||[]),event],lastEdited:new Date().toISOString(),lastQuoteRefresh:apply?'':data.lastQuoteRefresh});
+    return validate({...data,positions:apply?data.positions.map(item=>item.id===position.id?updated:item):data.positions,assetEvents:[...(data.assetEvents||[]),event],lastEdited:new Date().toISOString(),lastQuoteRefresh:apply?'':data.lastQuoteRefresh,lastQuoteAttempt:apply?'':data.lastQuoteAttempt});
   }
   function removeAssetEvent(data,id){
     const event=(data.assetEvents||[]).find(item=>item.id===id);
@@ -187,7 +187,7 @@
     if(later)throw Error('Remova primeiro as operações posteriores deste investimento.');
     const current=data.positions.find(item=>item.id===event.positionId),after=event.positionAfter,before=event.positionBefore;
     if(!current||!after||!before||current.quantity!==after.quantity||current.averagePriceCents!==after.averagePriceCents||current.investedCents!==after.investedCents||current.quoteAt!==after.quoteAt||current.manualAt!==after.manualAt)throw Error('A posição foi modificada depois desta operação. Confira as cotas antes de corrigir o histórico.');
-    return validate({...data,positions:data.positions.map(item=>item.id===event.positionId?before:item),assetEvents:data.assetEvents.filter(item=>item.id!==id),lastEdited:new Date().toISOString(),lastQuoteRefresh:''});
+    return validate({...data,positions:data.positions.map(item=>item.id===event.positionId?before:item),assetEvents:data.assetEvents.filter(item=>item.id!==id),lastEdited:new Date().toISOString(),lastQuoteRefresh:'',lastQuoteAttempt:''});
   }
   function recordSnapshot(data,date){
     if(!/^\d{4}-\d{2}-\d{2}$/.test(date))throw Error('Data do registro patrimonial inválida.');
@@ -212,7 +212,7 @@
   }
   function cashFlowSummary(data){return (data.cashFlows||[]).reduce((sum,f)=>sum+(f.type==='aporte'?f.amountCents:-f.amountCents),0);}
   function quotesRefreshDue(data,now=new Date()){
-    const checked=Date.parse(data?.lastQuoteRefresh);
+    const checked=Date.parse(data?.lastQuoteAttempt||data?.lastQuoteRefresh);
     return !Number.isFinite(checked)||now.getTime()-checked>=24*60*60*1000;
   }
   function quoteStatus(position,now=new Date()){

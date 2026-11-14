@@ -30,7 +30,7 @@
   }
   function energyIsComplete(date,syncedAt){const end=new Date(date+'T00:00:00');end.setDate(end.getDate()+1);return date<localDateKey(new Date())&&Number.isFinite(Date.parse(syncedAt))&&Date.parse(syncedAt)>=end.getTime();}
   function summarizeWeek(days){
-    const logged=days.filter(day=>day&&day.hasEntries);
+    const logged=days.filter(day=>day&&day.hasEntries&&!day.untracked);
     const closed=logged.filter(day=>day.complete);
     const measured=closed.filter(day=>Number(day.totalBurn)>0&&day.energyComplete!==false);
     const eaten=Math.round(logged.reduce((sum,day)=>sum+(Number(day.eaten)||0),0));
@@ -75,14 +75,16 @@
   async function renderWeeklyBalance(dateKey){
     const card=root.document&&root.document.getElementById('weekly-calorie-card');
     if(!card||typeof root.computeDietDaySummary!=='function')return;
-    const days=[],closed=await closedDays(),range=weekDates(dateKey||localDateKey(new Date()));
+    const days=[],closed=await closedDays(),untracked=await untrackedDays(),range=weekDates(dateKey||localDateKey(new Date()));
     for(const date of range){
       const summary=await root.computeDietDaySummary(date);
-      days.push({date,eaten:summary.comido,exercise:summary.exercicio,goal:summary.goal,totalBurn:summary.garminTotal,hasEntries:summary.entryCount>0,complete:!!closed[date],energyComplete:energyIsComplete(date,summary.garminSyncedAt)});
+      days.push({date,eaten:summary.comido,exercise:summary.exercicio,goal:summary.goal,totalBurn:summary.garminTotal,garminSyncedAt:summary.garminSyncedAt,hasEntries:summary.entryCount>0,complete:!!closed[date]&&!untracked[date],untracked:!!untracked[date],energyComplete:energyIsComplete(date,summary.garminSyncedAt)});
     }
     const result=summarizeWeek(days);
     const value=root.document.getElementById('weekly-calorie-value');
     const detail=root.document.getElementById('weekly-calorie-detail');
+    const energyStatus=root.document.getElementById('weekly-energy-status'),today=localDateKey(new Date()),todayRow=days.find(day=>day.date===today),yesterday=new Date();yesterday.setDate(yesterday.getDate()-1);const prior=days.find(day=>day.date===localDateKey(yesterday));
+    if(energyStatus){const stamp=todayRow?.garminSyncedAt&&Number.isFinite(Date.parse(todayRow.garminSyncedAt))?new Date(todayRow.garminSyncedAt).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}):null;energyStatus.textContent=todayRow?.totalBurn?`Garmin consultado${stamp?' às '+stamp:''} · gasto de hoje parcial`:'Garmin de hoje ainda sem gasto disponível';if(prior?.hasEntries)energyStatus.textContent+=prior.energyComplete?' · ontem reconsultado após a virada':' · ontem aguarda nova consulta';}
     card.dataset.tone=result.tone;
     value.textContent=result.balance!=null?`${result.balance>=0?'+':''}${result.balance} kcal`:'Saldo ainda incompleto';
     detail.textContent=`${result.closedDays}/7 dias alimentares concluídos · ${result.measuredDays} com gasto Garmin disponível · ${result.partialDays} em preenchimento. Gastos parciais ou consultados antes de terminar o dia ficam de fora.`;
@@ -91,14 +93,15 @@
     if($('weekly-goal'))$('weekly-goal').textContent=result.closedDays?`Meta alimentar dos ${result.closedDays} dias concluídos: ${result.goalBalance>=0?result.goalBalance+' kcal abaixo':Math.abs(result.goalBalance)+' kcal acima'} da meta. Esse valor é separado do saldo energético.`:'Conclua os lançamentos na aba Dieta para acompanhar a semana.';
     if($('weekly-days')){$('weekly-days').replaceChildren();days.forEach(d=>{
       const line=root.document.createElement('details'),heading=root.document.createElement('summary'),info=root.document.createElement('p');
-      heading.textContent=d.date.split('-').reverse().join('/')+' · '+(!d.hasEntries?'sem refeições':!d.complete?'em preenchimento':!d.energyComplete?'aguardando gasto final':!d.totalBurn?'sem gasto Garmin':`${Math.round(d.totalBurn-d.eaten)} kcal de saldo`);
+      heading.textContent=d.date.split('-').reverse().join('/')+' · '+(d.untracked?'não contabilizado':!d.hasEntries?'sem refeições':!d.complete?'em preenchimento':!d.energyComplete?'aguardando gasto final':!d.totalBurn?'sem gasto Garmin':`${Math.round(d.totalBurn-d.eaten)} kcal de saldo`);
       const eaten=d.hasEntries?`${Math.round(d.eaten)} kcal`:'sem registro';
       const spent=d.totalBurn?`${Math.round(d.totalBurn)} kcal`:'indisponível';
-      info.textContent=`Consumido: ${eaten} · Gasto total: ${spent} · Exercício: ${Math.round(d.exercise||0)} kcal. O exercício já faz parte do gasto total quando vem do Garmin.`;
+      info.textContent=d.untracked?'Dia marcado como não contabilizado. Registros existentes foram preservados, mas este dia não entra no saldo semanal nem na sequência.':`Consumido: ${eaten} · Gasto total: ${spent} · Exercício: ${Math.round(d.exercise||0)} kcal. O exercício já faz parte do gasto total quando vem do Garmin.`;
       line.append(heading,info);$('weekly-days').append(line);
     });}
   }
   async function closedDays(){try{const r=await root.ForjaStorage?.get('diet-closed-days');return r?JSON.parse(r.value):{};}catch{return {};}}
+  async function untrackedDays(){try{const r=await root.ForjaStorage?.get('diet-untracked-days');return r?JSON.parse(r.value):{};}catch{return {};}}
   let closingPastDays=null;
   async function autoClosePastDietDays(today=localDateKey(new Date())){
     if(typeof root.ForjaStorage?.get!=='function'||typeof root.ForjaStorage?.set!=='function')return 0;
@@ -118,8 +121,8 @@
     try{return await closingPastDays;}finally{closingPastDays=null;}
   }
   async function reopenDay(date){const closed=await closedDays();if(closed[date]){delete closed[date];await root.ForjaStorage.set('diet-closed-days',JSON.stringify(closed));}}
-  async function renderDayClose(date){const area=root.document?.getElementById('diet-day-close');if(!area)return;const closed=await closedDays(),summary=await root.computeDietDaySummary(date);area.replaceChildren();const p=root.document.createElement('p');p.textContent=closed[date]?'Lançamentos deste dia concluídos. Uma nova refeição ou edição reabre o dia.':'Já registrou tudo o que comeu neste dia? Conclua para incluir na semana.';area.append(p);const b=root.document.createElement('button');b.className='dica-add-btn';b.type='button';b.disabled=!summary.entryCount||date>localDateKey(new Date());b.textContent=closed[date]?'Reabrir dia':'Concluir lançamentos do dia';b.onclick=async()=>{const fresh=await closedDays();if(fresh[date])delete fresh[date];else fresh[date]=new Date().toISOString();await root.ForjaStorage.set('diet-closed-days',JSON.stringify(fresh));await renderDayClose(date);await renderWeeklyBalance(date);await root.renderDashboard?.();};area.append(b);}
-  async function addWater(){try{await root.quickAddWater(250,root.todayKey());}catch{root.showToast('Não foi possível registrar a água. Tente novamente.');}}
+  async function renderDayClose(date){const area=root.document?.getElementById('diet-day-close');if(!area)return;const closed=await closedDays(),untracked=await untrackedDays(),summary=await root.computeDietDaySummary(date);area.replaceChildren();const p=root.document.createElement('p');p.textContent=untracked[date]?'Dia não contabilizado: os registros foram preservados, mas o dia não entra no saldo semanal nem na sequência.':closed[date]?'Lançamentos deste dia concluídos. Uma nova refeição ou edição reabre o dia.':'Já registrou tudo o que comeu neste dia? Conclua para incluir na semana.';area.append(p);if(!untracked[date]){const b=root.document.createElement('button');b.className='dica-add-btn';b.type='button';b.disabled=!summary.entryCount||date>localDateKey(new Date());b.textContent=closed[date]?'Reabrir dia':'Concluir lançamentos do dia';b.onclick=async()=>{const fresh=await closedDays();if(fresh[date])delete fresh[date];else fresh[date]=new Date().toISOString();await root.ForjaStorage.set('diet-closed-days',JSON.stringify(fresh));await renderDayClose(date);await renderWeeklyBalance(date);await root.renderDashboard?.();};area.append(b);}const skip=root.document.createElement('button');skip.className='secondary-btn';skip.type='button';skip.disabled=date>localDateKey(new Date());skip.textContent=untracked[date]?'Desfazer dia não contabilizado':'Marcar dia não contabilizado';skip.onclick=async()=>{if(!untracked[date]&&!root.confirm?.('Marcar este dia como não contabilizado? Ele não entrará no saldo semanal e interromperá a sequência. Os registros já salvos serão mantidos.'))return;const fresh=await untrackedDays();if(fresh[date])delete fresh[date];else fresh[date]=new Date().toISOString();await root.ForjaStorage.set('diet-untracked-days',JSON.stringify(fresh));await renderDayClose(date);await renderWeeklyBalance(date);await root.renderDashboard?.();await root.ForjaProgressCalendar?.refreshIfVisible?.();};area.append(skip);}
+  async function addWater(){try{await root.quickAddWater(500,root.todayKey());}catch{root.showToast('Não foi possível registrar a água. Tente novamente.');}}
   async function openTab(tab){if(visible[tab]===false){await setTabVisible(tab,true);renderVisibleTabs();}root.switchTab(tab);}
   async function quickAdd(kind){
     const routes={dieta:'dieta',agua:'agua',corrida:'corrida',natacao:'natacao',crossfit:'crossfit',academia:'academia',corpo:'corpo'};
@@ -138,7 +141,8 @@
     if(status)status.textContent='Atualizando Garmin, Strava e resumos…';
     const integrations=await Promise.allSettled([
       root.ForjaHealthConnect?.sync?.()??Promise.resolve(false),
-      root.ForjaStravaUI?.sync?.(true)??Promise.resolve(false)
+      root.ForjaStravaUI?.sync?.(true)??Promise.resolve(false),
+      root.ForjaGarminWater?.sync?.()??Promise.resolve(false)
     ]);
     await root.renderDashboard?.();await root.renderDietTab?.();await renderWeeklyBalance();await root.ForjaHealthConnect?.showHome?.();
     const partial=integrations.some(r=>r.status==='rejected');
