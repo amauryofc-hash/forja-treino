@@ -165,7 +165,7 @@
       if(file.size>10*1024*1024)throw Error('Arquivo grande demais (limite de 10 MB).');
       const incoming=core.validate(JSON.parse(await file.text()));
       if(state.positions.length&&!confirm(`Substituir as ${state.positions.length} posições atuais pelas ${incoming.positions.length} posições do arquivo?`))return;
-      const before=state;state=core.validate({...incoming,cashFlows:incoming.cashFlows.length?incoming.cashFlows:state.cashFlows,assetEvents:incoming.assetEvents.length?incoming.assetEvents:state.assetEvents,watchlist:incoming.watchlist.length?incoming.watchlist:state.watchlist,watchAlerts:Object.keys(incoming.watchAlerts).length?incoming.watchAlerts:state.watchAlerts,provents:incoming.provents.length?incoming.provents:state.provents});
+      const before=state;state=core.validate({...incoming,cashFlows:incoming.cashFlows.length?incoming.cashFlows:state.cashFlows,cryptoTrades:incoming.cryptoTrades.length?incoming.cryptoTrades:state.cryptoTrades,snapshots:incoming.snapshots.length?incoming.snapshots:state.snapshots,assetEvents:incoming.assetEvents.length?incoming.assetEvents:state.assetEvents,watchlist:incoming.watchlist.length?incoming.watchlist:state.watchlist,watchAlerts:Object.keys(incoming.watchAlerts).length?incoming.watchAlerts:state.watchAlerts,provents:incoming.provents.length?incoming.provents:state.provents});
       try{await persist();}catch(error){state=before;render();throw error;}
     }catch(error){alert(error.message||'Não foi possível ler o arquivo.');}
     finally{event.target.value='';}

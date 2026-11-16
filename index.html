@@ -1072,7 +1072,7 @@
       <label class="finance-file-label" for="finance-note-file">Importar nota de negociação XP (.pdf)</label>
       <input id="finance-note-file" type="file" accept=".pdf,application/pdf">
       <p>A nota mostra compras e vendas. Se ela for posterior à posição base, as cotas são atualizadas após sua confirmação. Notas anteriores entram só no histórico, para não somar a mesma operação duas vezes.</p>
-      <label class="finance-file-label" for="finance-import-file">Ou importar arquivo JSON de posição</label>
+      <label class="finance-file-label" for="finance-import-file">Ou importar carteira preparada (.json)</label>
       <input id="finance-import-file" type="file" accept="application/json,.json">
       <div class="finance-fx-row"><label for="finance-fx-rate">Conversão US$ → R$</label><input id="finance-fx-rate" type="number" min="0.01" max="1000" step="0.0001" inputmode="decimal"><button type="button" id="finance-fx-save" class="finance-action">Salvar manualmente</button><button type="button" id="finance-fx-auto" class="finance-action finance-secondary">Consultar Banco Central</button></div><p id="finance-fx-status" role="status"></p>
       <p id="finance-source"></p>
@@ -1143,7 +1143,7 @@
 <script src="finance-xp.js?v=20261114-pension"></script>
 <script src="finance-pdf.js?v=2"></script>
 <script src="finance-note.js?v=1"></script>
-<script src="finance-ui.js?v=20261114-status"></script>
+<script src="finance-ui.js?v=20261116-import"></script>
 <script src="personalization.js"></script>
 <script src="crossfit-reading.js?v=20261002-crossfit-volume"></script>
 
