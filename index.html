@@ -1132,7 +1132,7 @@
 <script src="onboarding.js"></script>
 <script src="bible-reader.js"></script>
 <script src="image-files.js"></script>
-<script src="app.js?v=20261106-diet-flow"></script>
+<script src="app.js?v=20261118-garmin-daily"></script>
 <script src="diet-quick-launch.js?v=20261106-diet-flow"></script>
 <script src="sport-reports.js"></script>
 <script src="home-hero.js"></script>
@@ -1157,6 +1157,7 @@
 <script src="strava-core.js"></script>
 <script src="strava-ui.js"></script>
 <script src="garmin-water.js?v=20261101"></script>
+<script src="garmin-calories.js?v=20261118"></script>
 <script src="health-connect.js?v=20261024-day-close"></script>
 <script src="okok-weight.js?v=20261101"></script>
 <script src="diet-core.js"></script>
@@ -1176,7 +1177,7 @@
 <script src="section-guide.js?v=20261024"></script>
 <script src="panel-accordion.js?v=20261104-daniel-settings3"></script>
 <script>ForjaPanels.init();</script>
-<script>forjaInitialization.then(()=>ForjaStravaUI.init()).then(()=>ForjaGarminWater.init()).then(()=>ForjaStravaUI.sync()).catch(e=>console.error('Conexões:',e));</script>
+<script>forjaInitialization.then(()=>ForjaStravaUI.init()).then(()=>Promise.all([ForjaGarminWater.init(),ForjaGarminCalories.init()])).then(()=>ForjaStravaUI.sync()).catch(e=>console.error('Conexões:',e));</script>
 <script>forjaInitialization.then(()=>ForjaEstimateUI.init()).catch(e=>console.error('Referências:',e));</script>
 <script>forjaInitialization.then(()=>ForjaPersonalization.init()).then(()=>ForjaDietFlow.init()).then(()=>ForjaRoutineDiet.init()).then(()=>ForjaDietQuick.init()).catch(e=>console.error('Dieta:',e));</script>
 <script>forjaInitialization.then(()=>ForjaSupplements.init()).catch(e=>console.error('Suplementos:',e));</script>

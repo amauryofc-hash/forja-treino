@@ -1,0 +1,12 @@
+(function(root,factory){const api=factory(root);if(typeof module==='object'&&module.exports)module.exports=api;root.ForjaGarminCalories=api;})(typeof globalThis!=='undefined'?globalThis:this,function(root){
+ 'use strict';
+ const KEY='garmin-daily-calories-v1';let busy=false,lastAttempt=0;
+ const storage=()=>root.ForjaStorage||root.storage;
+ const validDate=date=>/^\d{4}-\d{2}-\d{2}$/.test(String(date||''));
+ function normalize(rows){if(!Array.isArray(rows)||rows.length>31)throw Error('Resposta diária Garmin inválida.');return rows.map(row=>{const total=Number(row?.totalKcal),active=row?.activeKcal==null?null:Number(row.activeKcal);if(!validDate(row?.date)||!Number.isFinite(total)||total<0||total>15000||(active!=null&&(!Number.isFinite(active)||active<0||active>total)))throw Error('Resposta diária Garmin inválida.');return {date:row.date,totalKcal:Math.round(total),activeKcal:active==null?null:Math.round(active),source:'Garmin Connect',syncedAt:row.syncedAt||null};});}
+ async function storedDays(){try{const row=await storage().get(KEY);return normalize(row?.value?JSON.parse(row.value):[]);}catch{return [];}}
+ async function day(date){return (await storedDays()).find(row=>row.date===date)||null;}
+ async function sync({automatic=false}={}){if(busy||automatic&&Date.now()-lastAttempt<5*60*1000)return false;const api=root.ForjaStravaUI?.request;if(!api)return false;busy=true;lastAttempt=Date.now();try{const today=root.todayKey(),startDate=new Date(today+'T12:00:00');startDate.setDate(startDate.getDate()-6);const start=root.todayKey(startDate),response=await api('/garmin/daily-calories?start='+start+'&end='+today),incoming=normalize(response?.days),previous=await storedDays(),byDate=new Map(previous.map(row=>[row.date,row])),at=new Date().toISOString();for(const row of incoming)byDate.set(row.date,{...row,syncedAt:at});await storage().set(KEY,JSON.stringify([...byDate.values()].sort((a,b)=>a.date.localeCompare(b.date))));await root.renderDashboard?.();await root.renderDietTab?.();await root.ForjaProgressCalendar?.refreshIfVisible?.();return true;}catch(error){if(!automatic)console.warn('Garmin diário indisponível:',error?.message||error);return false;}finally{busy=false;}}
+ async function init(){await sync({automatic:true});root.Capacitor?.Plugins?.App?.addListener?.('resume',()=>sync({automatic:true}));root.addEventListener?.('focus',()=>sync({automatic:true}));}
+ return{normalize,storedDays,day,sync,init};
+});

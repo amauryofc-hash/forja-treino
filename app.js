@@ -1704,14 +1704,15 @@ async function loadCrossfitUntrackedCalories(dateStr,garminPresent=false){
 }
 
 async function loadHealthConnectDay(dateStr){
+  const direct=await window.ForjaGarminCalories?.day?.(dateStr);
   try{
     const stored=await window.storage.get('health-connect-daily');
     const rows=stored?.value?JSON.parse(stored.value):[];
     const day=Array.isArray(rows)?rows.find(row=>row&&row.date===dateStr):null;
-    if(day?.sourcePackage!=='com.garmin.android.apps.connectmobile')return null;
+    if(day?.sourcePackage!=='com.garmin.android.apps.connectmobile')return direct;
     const num=v=>v==null||!Number.isFinite(Number(v))?null:Math.max(0,Number(v));
-    return day?{steps:num(day.steps),activeKcal:num(day.activeKcal),totalKcal:num(day.totalKcal),syncedAt:day.syncedAt||null}:null;
-  }catch(e){return null;}
+    return day?{steps:num(day.steps),activeKcal:direct?.activeKcal??num(day.activeKcal),totalKcal:direct?.totalKcal??num(day.totalKcal),syncedAt:direct?.syncedAt||day.syncedAt||null}:direct;
+  }catch(e){return direct||null;}
 }
 
 // Resumo calórico de um dia (ingerido/exercício/meta) — usado pela própria
